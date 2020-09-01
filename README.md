@@ -67,3 +67,5 @@ Below is the list of my selected labs to translate into 100% CLI
 * Working with Virtual Machines
 * Automating the Deployment of Infrastructure Using Deployment Manager
 * Cloud IAM
+
+Clone the repo to my local machine, added this line created the two branches and push the changes to origin.
