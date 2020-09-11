@@ -1,4 +1,4 @@
-Creating Virtual Machines
+LAB 1 Creating Virtual Machines
 
 Overview
 In this lab, we will explore the Virtual Machine instance options and create several VMs with different characteristics.
@@ -43,3 +43,4 @@ nproc
 lscpu
 ***exiting from ssh session
 exit
+--------------END OF LAB-----------------
