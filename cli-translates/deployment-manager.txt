@@ -1,0 +1,167 @@
+LAB: Automating the Deployment of Infrastructure Using Deployment Manager
+
+Task 1. Configure the network
+
+***Verifying that the Deployment Manager API is enabled
+
+***Starting the Cloud Shell Editor
+
+mkdir dminfra  #to make a dir dminfra
+cd dminfra  #to navigate to the dir dminfra
+
+***Opening the code editor and creating the auto mode network configuration file
+
+created config.yaml file
+
+resources:
+# Create the auto-mode network
+- name: mynetwork
+  type: compute.v1.network
+  properties:
+    autoCreateSubnetworks: true
+
+Task 2. Configure the firewall rule
+
+***Adding a firewall rule that allows HTTP, SSH, RDP, and ICMP traffic on mynetwork.
+
+# Create the firewall rule
+- name: mynetwork-allow-http-ssh-rdp-icmp
+  type: compute.v1.firewall
+  properties:
+    network: $(ref.mynework.selfLink)
+    sourceRanges: ["0.0.0.0/0"]
+    allowed:
+    - IPProtocol: TCP
+      ports: [22, 80, 3389]
+    allowed:
+    - IPProtocol: ICMP
+
+Task 3. Create a template for VM instances
+
+***Creating the VM instance template
+
+created instance-template.jinja file
+
+resources:
+- name: {{ env["name"] }}
+  type: compute.v1.instance
+  properties:
+     machineType: zones/{{ properties["zone"] }}/machineTypes/{{ properties["machineType"] }}
+     zone: {{ properties["zone"] }}
+     networkInterfaces:
+      - network: {{ properties["network"] }}
+        subnetwork: {{ properties["subnetwork"] }}
+        accessConfigs:
+        - name: External NAT
+          type: ONE_TO_ONE_NAT
+     disks:
+      - deviceName: {{ env["name"] }}
+        type: PERSISTENT
+        boot: true
+        autoDelete: true
+        initializeParams: 
+          sourceImage: https://www.googleapis.com/compute/v1/projects/debian-cloud/global/images/family/debian-9
+          
+Task 4. Deploy the configuration
+
+***Importing the template
+
+#writing the line below at the top of the config.yaml file.
+
+imports:
+- path: instance-template.jinja
+
+***Configuring VM instances in each network
+
+Adding the mynet-us-vm instance to config.yaml
+
+# Create the mynet-us-vm instance
+- name: mynet-us-vm
+  type: instance-template.jinja
+  properties:
+    zone: us-central1-a
+    machineType: n1-standard-1
+    network: $(ref.mynetwork.selfLink)
+    subnetwork: regions/us-central1/subnetworks/mynetwork
+
+Adding the mynet-eu-vm instance to config.yaml 
+
+# Create the mynet-eu-vm instance
+- name: mynet-eu-vm
+  type: instance-template.jinja
+  properties:
+    zone: europe-west1-d
+    machineType: n1-standard-1
+    network: $(ref.mynetwork.selfLink)  
+    subnetwork: regions/europe-west1/subnetworks/mynetwork
+
+At the end the config.yaml file should look like this:
+
+imports:
+- path: instance-template.jinja
+
+resources:
+# Create the auto-mode network
+- name: mynetwork
+  type: compute.v1.network
+  properties:
+    autoCreateSubnetworks: true
+
+# Create the firewall rule
+- name: mynetwork-allow-http-ssh-rdp-icmp
+  type: compute.v1.firewall
+  properties:
+    network: $(ref.mynetwork.selfLink)
+    sourceRanges: ["0.0.0.0/0"]
+    allowed:
+    - IPProtocol: TCP
+      ports: [22, 80, 3389]
+    - IPProtocol: ICMP
+
+# Create the mynet-us-vm instance
+- name: mynet-us-vm
+  type: instance-template.jinja
+  properties:
+    zone: us-central1-a
+    machineType: n1-standard-1
+    network: $(ref.mynetwork.selfLink)
+    subnetwork: regions/us-central1/subnetworks/mynetwork
+
+# Create the mynet-eu-vm instance
+- name: mynet-eu-vm
+  type: instance-template.jinja
+  properties:
+    zone: europe-west1-d
+    machineType: n1-standard-1
+    network: $(ref.mynetwork.selfLink)  
+    subnetwork: regions/europe-west1/subnetworks/mynetwork
+
+***Deploying the configuration
+
+gcloud deployment-manager deployments create dminfra --config=config.yaml --preview  #to preview a summary of the ressources to be created before creating them
+
+gcloud deployment-manager deployments update dminfra  #to create the deployment
+
+gcloud deployment-manager deployments create dminfra --config=config.yaml  #alternatively we could use this command to directly create our deployment without previewing first.
+
+Task 5. Verify our deployment
+
+gcloud compute networks list #to view our network
+
+gcloud compute networks subnets list --network=mynetwork  #to view our subnetworks creaated in mynetwork vpc
+
+gcloud compute firewall-rules list --sort-by=network #to view our firewall rules
+
+gcloud compute firewall-rules describe mynetwork-allow-http-ssh-rdp-icmp #to get more details about  mynetwork-allow-http-ssh-rdp-icmp 
+
+***Verifying our VM instances
+
+gcloud compute instances list  #to get a list of our vm and their IP address
+
+gcloud compute instances describe mynet-eu-vm --zone=europe-west1-d #Alternatively, we could also use this command to view more detailed info about a specific vm, in this case mynet-eu-vm.
+
+gcloud compute ssh mynet-us-vm --zone=us-central1-a  #to ssh into mynet-us-vm
+
+ping -c 3 "mynet-eu-vm's internal IP #to ping mynet-eu-vm. This should be succesful since they in the same vpc and we have a firewall rule to allow icmp traffic.
+
+--------------------END OF LAB--------------------
