@@ -1,0 +1,128 @@
+Task 1: Sign in to the Google Cloud Platform
+
+gcloud auth login
+
+gcloud config set project qwiklabs-gcp-00-bd02696524f5
+
+Task 2: Deploy a web server VM instance
+
+gcloud compute instances create bloghost \
+--zone=us-central1-a \
+--machine-type=n1-standard-1 \
+--image=debian-9-stretch-v20200910 \
+--image-project=debian-cloud	 \
+--tags=http-server \
+--subnet=default \
+--metadata=startup-script='apt-get update 
+apt-get install apache2 php php-mysql -y 
+service apache2 restart'
+
+# creating a firewall rule to allow http traffic.
+
+gcloud compute firewall-rules create default-allow-http \
+--direction=INGRESS \
+--priority=1000 \
+--network=default \
+--action=ALLOW \
+--rules=tcp:80 \
+--source-ranges=0.0.0.0/0 \
+--target-tags=http-server
+
+Task 3: Create a Cloud Storage bucket using the gsutil command line
+
+# setting our location and projectID in a env variable
+
+export LOCATION=US
+
+export MY_PROJECT=qwiklabs-gcp-00-bd02696524f5
+
+# creating our bucket
+
+gsutil mb -l $LOCATION gs://$MY_PROJECT
+
+# Retrieving a banner image from a publicly accessible Cloud Storage location
+
+gsutil cp gs://cloud-training/gcpfci/my-excellent-blog.png my-excellent-blog.png
+
+# Copying the banner image to our newly created Cloud Storage bucket
+
+gsutil cp my-excellent-blog.png gs://$MY_PROJECT/my-excellent-blog.png
+
+# Modifying the Access Control List of the object we just created so that it is readable by everyone
+
+gsutil acl ch -u allUsers:R gs://$MY_PROJECT/my-excellent-blog.png
+
+Task 4: Create the Cloud SQL instance
+
+gcloud sql instances create  blog-db \
+--zone=us-central1-a \
+--authorized-networks=23.251.153.25/32 \
+--assign-ip \
+--database-version=MYSQL_5_7 \
+--root-password=p@ssword 
+
+# creating a user 
+
+gcloud sql users create blogdbuser -i blog-db --password=p@assword 
+
+gcloud sql users set-password root --host=bloghost external IP --instance blog-db --password p@assword
+
+Task 5: Configure an application in a Compute Engine instance to use Cloud SQL
+
+# ssh into bloghost
+
+gcloud compute ssh bloghost --zone=us-central1-a
+
+# changing working directory to the document root of the web server
+
+cd /var/www/html
+
+# Using the nano text editor to edit a file called index.php
+
+sudo nano index.php
+
+# Restarting the web server
+
+sudo service apache2 restart
+
+# browsing the index.php in a web browser
+
+EXTERNAL_IP/index.php
+
+# we will get a connection failed error message.because we have not yet configured PHP's connection to our Cloud SQL instance.
+
+# Back in the index.php file in the nano text editor, we will replace CLOUDSQLIP with the Cloud SQL instance Public IP address. And DBPASSWORD with the root password of our instance
+
+sudo nano index.php
+
+# save the file and Restart the web server
+
+sudo service apache2 restart
+
+# browsing the index.php in a web browser again and we will get a connection succeeded message.
+
+Task 6: Configure an application in a Compute Engine instance to use a Cloud Storage object
+
+# getting the public url of our object
+
+gsutil ls gs://$MY_PROJECT/my-excellent-blog.png
+
+# ssh into bloghost
+
+gcloud compute ssh bloghost --zone=us-central1-a
+
+# Editing index.php file
+
+cd /var/www/html
+
+sudo nano index.php
+
+# adding the url of our object
+
+<img src='https://storage.googleapis.com/qwiklabs-gcp-0005e186fa559a09/my-excellent-blog.png'>
+
+# save the file and restart the web server
+
+sudo service apache2 restart
+
+-------------END OF LAB--------------

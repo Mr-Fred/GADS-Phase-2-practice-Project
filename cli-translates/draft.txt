@@ -1,0 +1,86 @@
+gcloud compute routers create nat-router-us-central1 \
+--region=us-central1 \
+--network=default
+
+gcloud compute routers nats create nat-config \
+--router=nat-router-us-central1 \
+--region=us-central1 \
+--nat-all-subnet-ip-ranges \
+--auto-allocate-nat-external-ips
+
+gcloud compute instances create webserver \
+--zone=us-central1-a \
+--machine-type=f1-micro \
+--no-boot-disk-auto-delete \
+--boot-disk-device-name=webserver \
+--tags=allow-health-checks \
+--no-address
+
+gcloud compute ssh webserver --zone=us-central1-a --tunnel-through-iap
+
+gcloud compute instances describe webserver --zone=us-central1-a --format yaml
+
+gcloud compute images create mywebserver --source-disk=webserver --source-disk-zone=us-central1-a
+
+gcloud compute disks delete webserver --zone=us-central1-a
+##Download DM template from GCS bucket
+
+gsutil cp gs://sureskills-ql/challenge-labs/ch02-deployment-manager/* .
+	
+## Update Debian-8 family to Debian-9 in qwiklabs.jinja file for sourceImage if not pointing to Debian-9
+sourceImage: 
+
+## Create Deployment in the lab
+gcloud deployment-manager deployments create test --config=qwiklabs.yaml
+
+
+
+
+#### Delete jinja file and create new and copy-paste the below code:
+
+resources:
+- type: compute.v1.firewall
+  name: tcp-firewall-rule
+  properties:
+    network: https://www.googleapis.com/compute/v1/projects/{{ env["project"] }}/global/networks/default
+    sourceRanges: ["0.0.0.0/0"]
+    targetTags: ['http']
+    allowed:
+     - IPProtocol: TCP
+       ports: ["80"]
+- type: compute.v1.instance
+  name: vm-test
+  properties:
+    zone: {{ properties['zone'] }}
+    machineType: https://www.googleapis.com/compute/v1/projects/{{ env['project'] }}/zones/{{ properties['zone'] }}/machineTypes/f1-micro
+    tags:
+     items: ['http']
+    metadata:
+      items:
+      # For more ways to use startup scripts on an instance, see:
+      #   https://cloud.google.com/compute/docs/startupscript
+      - key: startup-script
+        value: |
+          #!/bin/bash
+          apt-get update
+          apt-get install -y apache2
+    disks:
+    - deviceName: boot
+      type: PERSISTENT
+      boot: true
+      autoDelete: true
+      initializeParams:
+        diskName: disk-{{ env["deployment"] }}
+        sourceImage: https://www.googleapis.com/compute/v1/projects/debian-cloud/global/images/family/debian-9
+    networkInterfaces:
+    - network: https://www.googleapis.com/compute/v1/projects/{{ env["project"] }}/global/networks/default
+      # Access Config required to give the instance a public IP address
+      accessConfigs:
+      - name: External NAT
+        type: ONE_TO_ONE_NAT
+
+
+
+"#! /bin/bash\nsudo\ su -\napt-get update\napt-get install -y apache2"
+
+No metadata qwiklab-vm>qwiklabs-vm

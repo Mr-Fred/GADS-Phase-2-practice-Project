@@ -1,0 +1,90 @@
+LAB Google Cloud Fundamentals: Getting Started with Compute Engine
+
+This lab has been completed from my debian local machine. I have installed gcloud SDK on the machine.
+
+Task 1: Authenticating Gcloud with GCP from our local machine
+
+# to get a token and login with the user info provided by qwicklab
+
+gcloud auth login
+
+# setting default project 
+
+gcloud config set project proj_ID
+
+Task 2: Create a virtual machine 
+
+# first creating the firewall rule to allow http traffic
+
+gcloud compute firewall-rules create allow-http \
+--direction=INGRESS \
+--priority=1000 \
+--network=default \
+--action=ALLOW \
+--rules=tcp:80 \
+--source-ranges=0.0.0.0/0 \
+--target-tags=http-tag 
+
+gcloud compute instances create my-vm-1 \
+--zone=us-central1-a \
+--machine-type=n1-standard-1 \
+--image=debian-9-stretch-v20200910 \
+--image-project=debian-cloud	 \
+--tags=http-tag \
+--subnet=default 
+
+Task 3: Create a virtual machine using the gcloud command line
+# to list available zone in the us-central1 region
+
+gcloud compute zones list | grep us-central1
+
+# setting a default zone where ressources will be created
+
+gcloud config set compute/zone us-central1-b
+
+# creating a VM instance called my-vm-2 in that zone
+
+gcloud compute instances create "my-vm-2" \
+--machine-type "n1-standard-1" \
+--image-project "debian-cloud" \
+--image "debian-9-stretch-v20190213" \
+--subnet "default" \
+--zone=us-central1-b
+
+Task 4: Connect between VM instances
+
+# to ssh into my-vm-2
+
+gcloud compute ssh my-vm-2 --zone=us-central1-b
+
+# Pinging my-vm-1
+
+ping -c 3 my-vm-1
+
+# to ssh into my-vm-1
+
+ssh my-vm-1
+
+# Installing mginx web server
+
+sudo apt-get install nginx-light -y
+
+# editing the home page of the web server
+
+sudo nano /var/www/html/index.nginx-debian.html
+
+# adding this line
+
+Hi from WILFRIED ADENIYI
+
+# verifying that our web server is up and running
+
+curl http://localhost/
+
+# exit from my-vm-1
+exit
+
+# navigating the web server from my-vm-2
+
+curl http://my-vm-1/
+

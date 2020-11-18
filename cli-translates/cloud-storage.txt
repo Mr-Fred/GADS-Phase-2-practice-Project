@@ -1,0 +1,338 @@
+LAB Cloud Storage
+
+# setting up our environment
+
+gcloud auth login
+
+gcloud config set project qwiklabs-gcp-00-c5d14a1fc92f
+
+Task 1: Preparation
+
+# Creating a Cloud Storage bucket
+
+gsutil mb gs://mybucket-c5d14a1fc92f
+
+# storing our bucket name in an env variable.
+
+export BUCKET_NAME_1=mybucket-c5d14a1fc92f
+
+# Downloading a sample file using CURL and make two copies
+
+curl \
+http://hadoop.apache.org/docs/current/\
+hadoop-project-dist/hadoop-common/\
+ClusterSetup.html > setup.html
+
+# making copies of setup.html
+
+cp setup.html setup2.html && cp setup.html setup3.html
+
+Task 2: Access control lists (ACLs)
+Copy the file to the bucket and configure the access control list
+
+# copying setup.html to the bucket
+
+gsutil cp setup.html gs://$BUCKET_NAME_1
+
+# getting the default access list that's been assigned to setup.html and writing the output into acl.txt
+
+gsutil acl get gs://$BUCKET_NAME_1/setup.html  > acl.txt
+
+# reading the default acl of setup.html from acl.txt
+
+cat acl.txt
+
+# setting the access list to private and verifying the results
+
+gsutil acl set private gs://$BUCKET_NAME_1/setup.html
+
+gsutil acl get gs://$BUCKET_NAME_1/setup.html  > acl2.txt
+
+cat acl2.txt
+
+# updating the access list to make the file publicly readable and verifying the results
+
+gsutil acl ch -u AllUsers:R gs://$BUCKET_NAME_1/setup.html
+
+gsutil acl get gs://$BUCKET_NAME_1/setup.html  > acl3.txt
+
+cat acl3.txt
+
+# Deleting the local file and copying back from Cloud Storage
+
+rm setup.html
+
+gsutil cp gs://$BUCKET_NAME_1/setup.html setup.html
+
+Task 3: Customer-supplied encryption keys (CSEK)
+
+# Generating a CSEK key
+
+python3 -c 'import base64; import os; print(base64.encodebytes(os.urandom(32)))'
+
+value of the generated key is : VGprteFDTZORc2NZhMHudrY+xmCbamtpgjx24ifAi3I=
+
+# Modifying the boto file
+
+ls -al 
+
+# if there is no .boto file we can generate one with the cmd: gsutil config -n 
+
+nano .boto
+
+# inside the .boto file we locate #encryption_key= and uncomment the line by removing the # character, and paste the key generated earlier at the end
+
+# uploading the remaining setup.html files. Both setup2.html and setup3.html files will show that they are customer-encrypted in the console.
+
+gsutil cp setup2.html gs://$BUCKET_NAME_1/
+gsutil cp setup3.html gs://$BUCKET_NAME_1/
+
+# deleting all our local files
+
+rm setup*
+
+# copying the files from the bucket again
+
+gsutil cp gs://$BUCKET_NAME_1/setup* ./
+
+Task 4: Rotate CSEK keys
+
+# Moving the current CSEK encrypt key to decrypt key
+
+nano .boto
+
+# inside the file we comment out and copy the "encryption_key" value to "decryption_key1=" and uncomment.
+
+# Generating another CSEK key and add to the boto file 
+
+python3 -c 'import base64; import os; print(base64.encodebytes(os.urandom(32)))'
+
+# opening the .boto file again
+
+nano .boto
+
+# inside the .boto file, we uncomment encryption and paste the new key value for "encryption_key="
+
+# Rewriting the key for for setup2.html and comment out the old decrypt key. When a file is encrypted, rewriting the file decrypts it using the decryption_key1 that you previously set, and encrypts the file with the new encryption_key.
+
+gsutil rewrite -k gs://$BUCKET_NAME_1/setup2.html
+
+#  open the boto file and Comment out the current decryption_key1 line by adding the # character back in
+nano .boto
+
+# Downloading setup 2 and setup3 as recover2.html and recover3.html
+
+gsutil cp  gs://$BUCKET_NAME_1/setup2.html recover2.html
+
+# setup3.html was not rewritten with the new key, so it can no longer be decrypted, and the copy will fail.
+
+gsutil cp  gs://$BUCKET_NAME_1/setup3.html recover3.html
+
+Task 5: Enable lifecycle management
+
+# Viewing the current lifecycle policy for the bucket. there is none 
+
+gsutil lifecycle get gs://$BUCKET_NAME_1
+
+# Creating a JSON lifecycle policy file. This file will be used to activate the lifecycle management, with instruction to tell Cloud Storage to delete the object after 31 days
+
+nano life.json
+
+-------START FILE--------
+{
+  "rule":
+  [
+    {
+      "action": {"type": "Delete"},
+      "condition": {"age": 31}
+    }
+  ]
+}
+--------END FILE---------
+
+# Seting the policy and verify
+
+gsutil lifecycle set life.json gs://$BUCKET_NAME_1
+
+# verifying the policy
+
+gsutil lifecycle get gs://$BUCKET_NAME_1
+
+Task 6: Enable versioning
+
+# Viewing the versioning status for the bucket and enable versioning. The Suspended policy means that it is not enabled.
+
+gsutil versioning get gs://$BUCKET_NAME_1
+
+# enabling versioning
+
+gsutil versioning set on gs://$BUCKET_NAME_1
+
+# verifying that versioning is enable
+
+gsutil versioning get gs://$BUCKET_NAME_1
+
+# Creating several versions of the sample file in the bucket
+
+ls -al setup.html # to verify the size of setup.html
+
+# Deleting any 5 lines from setup.html to change the size of the file
+
+nano setup.html
+
+# Copying the file to the bucket with the -v versioning option
+
+gsutil cp -v setup.html gs://$BUCKET_NAME_1
+
+# Deleting another 5 lines from setup.html to change the size of the file
+
+nano setup.html
+
+# Copying the file to the bucket with the -v versioning option
+
+gsutil cp -v setup.html gs://$BUCKET_NAME_1
+
+# Listing all versions of the file
+
+gsutil ls -a gs://$BUCKET_NAME_1/setup.html
+
+# we Highlight and copy the name of the oldest version of the file (the first listed), referred to as [VERSION_NAME] in the next step and store the name in an environment variable.
+
+export VERSION_NAME=gs://mybucket-c5d14a1fc92f/setup.html#1601741959023696
+
+# Downloading the oldest, original version of the file and verify recovery
+
+gsutil cp $VERSION_NAME recovered.txt
+
+# verifying recovery. the original must be bigger than the current version because we deleted lines.
+
+ls -al setup.html
+
+ls -al recovered.txt
+
+Task 7: Synchronize a directory to a bucket
+
+# Making a nested directory and sync with a bucket and copy setup.html in both dir
+
+mkdir firstlevel
+mkdir ./firstlevel/secondlevel
+cp setup.html firstlevel
+cp setup.html firstlevel/secondlevel
+
+# syncing the firstlevel directory on the VM with our bucket
+
+gsutil rsync -r ./firstlevel gs://$BUCKET_NAME_1/firstlevel
+
+# examining the result. both dir will be created in our bucket with their respective files.
+
+gsutil ls -r gs://$BUCKET_NAME_1/firstlevel
+
+Task 8: Cross-project sharing
+
+# Switching to the second project 
+
+gcloud config set project qwiklabs-gcp-00-c794e7ad7da5
+
+export 	BUCKET_NAME_2=qwiklabs-gcp-00-c794e7ad7da5
+
+# Creating bucket
+
+gsutil mb gs://$BUCKET_NAME_2
+
+# Uploading a text file to the bucket 2
+
+echo "this is sample file for bucket 2" > file.txt
+
+gsutil cp file.txt gs://$BUCKET_NAME_2/
+
+# Creating an IAM Service Account
+
+gcloud iam service-accounts create  cross-project-storage \
+--display-name="Cross Project Storage"
+
+# adding role policy binding to the service account.
+
+gcloud projects add-iam-policy-binding qwiklabs-gcp-00-c794e7ad7da5 \
+--member=serviceAccount:cross-project-storage@qwiklabs-gcp-00-c794e7ad7da5.iam.gserviceaccount.com \
+--role='roles/storage.objectViewer'
+
+# creating the service account key
+
+gcloud iam service-accounts keys create ~/credentials.json \
+--iam-account=cross-project-storage@qwiklabs-gcp-00-c794e7ad7da5.iam.gserviceaccount.com
+
+# Switching to project 1
+
+gcloud config set project qwiklabs-gcp-00-c5d14a1fc92f
+
+# Creating a vm 
+
+gcloud compute instances create crossproject \
+--zone=europe-west1-d \
+--machine-type=n1-standard-1 \
+--image=debian-10-buster-v20200910  \
+--image-project=debian-cloud 
+
+# Copying the credential.json file to crossproject's vm home directory.
+
+gcloud compute scp ~/credentials.json crossproject:~ --zone=europe-west1-d 
+
+# SSH to the crossproject VM
+
+gcloud compute ssh crossproject --zone=europe-west1-d 
+
+# Storing [BUCKET_NAME_2] and file.txt in an environment variable
+
+export BUCKET_NAME_2=qwiklabs-gcp-00-c794e7ad7da5
+
+export FILE_NAME=file.txt
+
+# Listing the files in [PROJECT_ID_2]. this will fail
+
+gsutil ls gs://$BUCKET_NAME_2/
+
+# Authorizing the VM
+
+gcloud auth activate-service-account --key-file credentials.json
+
+# Verifying access. this will work now
+
+gsutil ls gs://$BUCKET_NAME_2/
+
+gsutil cat gs://$BUCKET_NAME_2/$FILE_NAME
+
+#  copying the credentials file to the bucket. this will fail because the service account only have object view  permission and not object create.
+
+gsutil cp credentials.json gs://$BUCKET_NAME_2/
+
+# Switching back to proj 2 and modifying role the service account role
+
+gcloud iam service-accounts get-iam-policy cross-project-storage@qwiklabs-gcp-00-c794e7ad7da5.iam.gserviceaccount.com --format json > ~/sa-binding.json 
+
+# we will edit the sa-binding.json file with the rew role then apply it our service account. 
+	
+nano sa-binding.json 
+
+# replace the role/storage.objectViewer with role/storage.ObjectAdmin. Save the file and apply changes to the service account.
+
+gcloud iam service-accounts set-iam-policy cross-project-storage@qwiklabs-gcp-00-c794e7ad7da5.iam.gserviceaccount.com ~/sa-binding.json
+
+# Verifying changed access. this should work now
+
+gsutil cp credentials.json gs://$BUCKET_NAME_2/
+
+------------END OF LAB-------------
+
+{
+  "bindings": [
+    {
+      "role": "roles/storage.objectAdmin",
+      "members": [
+        "serviceAccount:service-account-13@appspot.gserviceaccount.com",
+        "user:wei@example.com"
+      ]
+    }
+  ],
+  "etag": "BwUjMhCsNvY=",
+  "version": 1
+}

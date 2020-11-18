@@ -1,0 +1,95 @@
+LAB Google Cloud Fundamentals: Getting Started with Deployment Manager and Cloud Monitoring
+
+Task 1: Sign in to the Google Cloud Platform and setting up our env
+
+gcloud auth login
+
+gcloud config set project 
+
+Task 2: Confirm that needed APIs are enabled
+
+gcloud services list | grep Cloud Deployment Manager v2 API
+
+gcloud services list | grep Cloud Runtime Configuration API
+
+gcloud services list | grep Cloud Monitoring API
+
+Task 3: Create a Deployment Manager deployment
+
+# creating an environment variable $MY_ZONE
+
+export MY_ZONE=us-central1-a
+export MY_PROJECT_ID=qwiklabs-gcp-02-c772b47acb22
+
+# downloading an editable Deployment Manager template from a cloud storage bucket
+
+gsutil cp gs://cloud-training/gcpfcoreinfra/mydeploy.yaml mydeploy.yaml
+
+# using the sed command to replace the PROJECT_ID placeholder string with our GCP project in mydeploy.yaml
+
+# using the sed command to replace the ZONE placeholder string with our default zone in mydeploy.yaml
+
+sed -i -e "s/ZONE/$MY_ZONE/" mydeploy.yaml
+
+sed -i -e "s/PROJECT_ID/$MY_PROJECT_ID/" mydeploy.yaml
+
+# Viewing the mydeploy.yaml file
+
+cat mydeploy.yaml
+
+# should look like this 
+-------------------------------------------------
+  resources:
+  - name: my-vm
+    type: compute.v1.instance
+    properties:
+      zone: us-central1-a
+      machineType: zones/us-central1-a/machineTypes/n1-standard-1
+      metadata:
+        items:
+        - key: startup-script
+          value: "apt-get update"
+      disks:
+      - deviceName: boot
+        type: PERSISTENT
+        boot: true
+        autoDelete: true
+        initializeParams:
+          sourceImage: https://www.googleapis.com/compute/v1/projects/debian-cloud/global/images/debian-9-stretch-v20180806
+      networkInterfaces:
+      - network: https://www.googleapis.com/compute/v1/projects/qwiklabs-gcp-dcdf854d278b50cd/global/networks/default
+        accessConfigs:
+        - name: External NAT
+          type: ONE_TO_ONE_NAT
+----------------------------------------------------------------------
+
+# Build a deployment named my-first-depl from the template mydeploy.yaml
+
+gcloud deployment-manager deployments create my-first-depl --config mydeploy.yaml
+
+# Confirm that the deployment was successful by viewing the compute instance created
+
+gcloud compute instances list 
+
+# to view more detail about our vm and it metadata. so that we can see the script
+
+gcloud compute instances describe my-vm
+
+Task 4: Update a Deployment Manager deployment
+
+# editing the mydeploy.yaml file in the nano text editor.
+
+nano mydeploy.yaml
+
+# updating the startup script to install an nginx web server on our vm
+
+FROM [value: "apt-get update] TO [value: "apt-get update; apt-get install nginx-light -y"]
+
+# generating CPU load
+
+dd if=/dev/urandom | gzip -9 >> /dev/null &
+
+# Terminating our workload generator
+
+kill %1
+

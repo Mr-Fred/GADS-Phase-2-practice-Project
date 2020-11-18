@@ -1,0 +1,163 @@
+LAB Examining Billing data with BigQuery
+
+# setting up our environment
+
+gcloud auth login
+
+gcloud config set project 
+
+Task 1: Use BigQuery to import data
+
+# creating a dataset in BigQuery
+
+bq mk -d --location=US --default_table_expiration=86400 imported_billing_data
+
+# Creating a table and import
+
+bq load --source_format=CSV \
+--autodetect \
+--skip_leading_rows=1 \
+imported_billing_data.sampleinfotable \
+gs://cloud-training/archinfra/export-billing-example.csv
+
+Task 2: Examine the table
+
+# viewing the table schema
+
+bq show imported_billing_data.sampleinfotable
+
+# retrieving the job ID
+
+bq ls -j qwiklabs-gcp-03-8d4e9fd8759a
+
+# previewing the imported_billing_data.sampleinfotable data
+
+bq head -t imported_billing_data.sampleinfotable
+
+Task 3: Compose a simple query
+
+bq query --use_legacy_sql=false \
+'SELECT * FROM `imported_billing_data.sampleinfotable`
+WHERE Cost > 0'
+
+Task 4: Analyze a large billing dataset with SQL
+
+# first query
+
+bq query --use_legacy_sql=false \
+'SELECT
+  product,
+  resource_type,
+  start_time,
+  end_time,
+  cost,
+  project_id,
+  project_name,
+  project_labels_key,
+  currency,
+  currency_conversion_rate,
+  usage_amount,
+  usage_unit
+FROM
+  `cloud-training-prod-bucket.arch_infra.billing_data`'
+
+# second query 
+
+bq query --use_legacy_sql=false \
+SELECT
+  product,
+  resource_type,
+  start_time,
+  end_time,
+  cost,
+  project_id,
+  project_name,
+  project_labels_key,
+  currency,
+  currency_conversion_rate,
+  usage_amount,
+  usage_unit
+FROM
+  `cloud-training-prod-bucket.arch_infra.billing_data`
+WHERE
+  Cost > 0
+ORDER BY end_time DESC
+LIMIT
+  100
+
+# third query
+
+bq query --use_legacy_sql=false \
+SELECT
+  product,
+  resource_type,
+  start_time,
+  end_time,
+  cost,
+  project_id,
+  project_name,
+  project_labels_key,
+  currency,
+  currency_conversion_rate,
+  usage_amount,
+  usage_unit
+FROM
+  `cloud-training-prod-bucket.arch_infra.billing_data`
+WHERE
+  cost > 3
+
+# fourth query
+
+bq query --use_legacy_sql=false \
+SELECT
+  product,
+  COUNT(*) AS billing_records
+FROM
+  `cloud-training-prod-bucket.arch_infra.billing_data`
+GROUP BY
+  product
+ORDER BY billing_records DESC
+
+# Fifth query
+
+bq query --use_legacy_sql=false \
+SELECT
+  product,
+  COUNT(*) AS billing_records
+FROM
+  `cloud-training-prod-bucket.arch_infra.billing_data`
+WHERE
+  cost > 1
+GROUP BY
+  product
+ORDER BY
+  billing_records DESC
+
+# Sisth query
+
+bq query --use_legacy_sql=false \
+SELECT
+  usage_unit,
+  COUNT(*) AS billing_records
+FROM
+  `cloud-training-prod-bucket.arch_infra.billing_data`
+WHERE cost > 0
+GROUP BY
+  usage_unit
+ORDER BY
+  billing_records DESC
+
+# Seventh query
+
+bq query --use_legacy_sql=false \
+SELECT
+  product,
+  ROUND(SUM(cost),2) AS total_cost
+FROM
+  `cloud-training-prod-bucket.arch_infra.billing_data`
+GROUP BY
+  product
+ORDER BY
+  total_cost DESC
+
+------------END OF LAB-----------

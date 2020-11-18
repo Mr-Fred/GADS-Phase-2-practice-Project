@@ -1,5 +1,15 @@
 LAB: Automating the Deployment of Infrastructure Using Deployment Manager
 
+In this lab we Create a configuration for an auto mode network
+
+Create a configuration for a firewall rule
+
+Create a template for VM instances
+
+Create and deploy a configuration
+
+Verify the deployment of a configuration
+
 Task 1. Configure the network
 
 ***Verifying that the Deployment Manager API is enabled

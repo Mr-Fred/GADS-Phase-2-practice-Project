@@ -1,0 +1,68 @@
+LAB Google Cloud Fundamentals: Getting Started with GKE
+
+This lab has been completed from my local machine.
+
+Task 1: Sign in to the Google Cloud Platform
+# to get a token to authenticate with GCP
+
+gcloud auth login
+
+# setting the project we will be creating ressources in
+
+gcloud config set project qwiklabs-gcp-02-88e1c149afe9
+
+Task 2: Confirm that needed APIs are enabled
+
+gcloud services list | grep "Kubernetes Engine API"
+
+gcloud services list | grep "Container Registry API"
+
+Task 3: Start a Kubernetes Engine cluster
+
+# placing the zone that Qwiklabs assigned you to into an environment variable called MY_ZONE
+
+export MY_ZONE=us-central1-a
+
+# Starting webfrontend Kubernetes cluster managed by Kubernetes Engine 
+
+gcloud container clusters create webfrontend --zone $MY_ZONE --num-nodes 2
+
+# checking the installed version of kubernetes
+
+kubectl version
+
+# Viewing our running nodes in the GCP
+
+gcloud compute instances list
+
+Task 4: Run and deploy a container
+
+# to run a deployment of a single pod containing the nginx web server
+
+kubectl create deploy nginx --image=nginx:1.17.10
+
+# Viewing the pod running the nginx container
+
+kubectl get pods
+
+# to expose the nginx web server to the internet using a service of type LoadBalancer
+
+kubectl expose deployment nginx --port 80 --type LoadBalancer
+
+# Viewing the new service
+
+kubectl get services
+
+# Scaling up the number of pods running on our cluster
+
+kubectl scale deployment nginx --replicas 3
+
+#Confirming that Kubernetes has updated the number of pods
+
+kubectl get pods
+
+#Confirming that our external IP address has not changed
+
+kubectl get services
+
+-------END OF LAB-------

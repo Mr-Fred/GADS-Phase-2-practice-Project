@@ -1,0 +1,62 @@
+LAB Google Cloud Fundamentals: Getting Started with App Engine
+
+# Setting up our lab environment
+
+gcloud auth login
+
+gcloud config set project qwiklabs-gcp-03-59caabee7f8c
+
+Task 1: Initialize App Engine
+
+# Initializing our App Engine app with our project and choose its region. We will be prompted to select a region for our app to be hosted.
+
+gcloud app create --project=qwiklabs-gcp-02-5f56936006f7
+
+# Cloning the source code repository for a sample application in the hello_world directory
+
+git clone https://github.com/GoogleCloudPlatform/python-docs-samples
+
+# Navigating to the source directory
+
+cd python-docs-samples/appengine/standard_python3/hello_world
+
+Task 2: Run Hello World application locally
+
+#updating our package repo
+
+sudo apt-get update
+
+# Setting up a virtual environment in which we will run our application
+
+sudo apt-get install -y virtualenv
+
+virtualenv -p python3 venv
+
+# Activating the virtual environment
+
+source venv/bin/activate
+
+# Installing dependencies in the project directory
+
+pip install  -r requirements.txt
+
+# Running the application
+
+python main.py
+
+# navigate to http://127.0.0.1:8080/ to view our app on localhost
+
+Task 3: Deploy and run Hello World on App Engine
+
+# Navigating to the source directory
+
+cd ~/python-docs-samples/appengine/standard_python3/hello_world
+
+# Deploying our Hello World application
+
+gcloud app deploy
+
+# Copy and paste the URL into a new browser window to view our app.
+
+gcloud app browse
+

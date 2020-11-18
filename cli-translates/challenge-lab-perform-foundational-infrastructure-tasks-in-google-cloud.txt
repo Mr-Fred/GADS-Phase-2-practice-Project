@@ -1,0 +1,59 @@
+Perform Foundational Infrastructure Tasks in Google Cloud: Challenge Lab
+
+In this la we Create a bucket for storing the photographs.
+Create a Pub/Sub topic that will be used by a Cloud Function you create.
+Create a Cloud Function.
+Remove the previous cloud engineer’s access from the memories project.
+
+# setting up our environment 
+
+gcloud config set compute/region us-east1
+
+gcloud config set project qwiklabs-gcp-02-785dbbeda332
+
+export PROJECT_ID=qwiklabs-gcp-02-785dbbeda332
+
+Task 1: Create a bucket
+
+gsutil mb gs://team-memories-bucket
+
+Task 2: Create a Pub/Sub topic
+
+gcloud pubsub topics create memoriesTopic
+
+Task 3: Create the thumbnail Cloud Function
+
+# preparing the function code to be executed.
+
+mkdir thumbnail && cd thumbnail
+
+# pasting the code and making necessary changes
+
+vi index.js 
+
+# pasting the dependencie of the code in index.js
+
+vi package.json
+
+# Deploying our thumbnail function
+
+gcloud functions deploy thumbnail \
+--entry-point=thumbnail \
+--region=us-east1 \
+--runtime=nodejs10 \
+--trigger-resource=gs://team-memories-bucket \
+--trigger-event=google.storage.object.finalize 
+
+# testing our function by downloading and uploading an immage to our stoage bucket
+
+wget https://storage.googleapis.com/cloud-training/gsp315/map.jpg
+
+gsutil cp map.jpg gs://team-memories-bucket
+
+Task 4: Remove the previous cloud engineer
+
+gcloud projects remove-iam-policy-binding $PROJECT_ID \
+--member='user:student-02-e3c038c31218@qwiklabs.net' \
+--role='roles/viewer'
+
+-------------END OF LAB-------------

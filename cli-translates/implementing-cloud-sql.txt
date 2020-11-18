@@ -1,0 +1,104 @@
+LAB Implementing Cloud SQL
+
+# setting up our environment
+
+gcloud auth login
+
+gcloud config set project qwiklabs-gcp-01-52e0f7f10cda
+
+Task 1: Create a Cloud SQL database
+ in this task, we are asked to create an SLQ instance with a private ip. In order to do so, we need to first enable Private service Access in our network. the following step describe how to so. 
+
+# First we need to create an allocated IP range, that should not overlap with the VPC of our instance that will connect to the SQL instance using internal IP
+
+gcloud compute addresses create google-managed-services-default \
+--global \
+--purpose=VPC_PEERING \
+--addresses=192.168.0.0 \
+--prefix-length=16 \
+--network=default
+
+# Then we create the private connection to Google service. the commande will return an operation name
+
+gcloud services vpc-peerings connect \
+--service=servicenetworking.googleapis.com \
+--ranges=google-managed-services-default \
+--network=default
+
+# Checking whether the operation was successful
+
+gcloud services vpc-peerings operations describe \
+--name=operations/pssn.03763478-a1c1-41d0-b489-6f8db127b24e
+
+# Creating our cloud sql instance and configuring it to use private ip
+
+gcloud beta sql instances create wordpress-db \
+--network=default \
+--region=us-central1 \
+--database-version=MYSQL_5_7 \
+--tier=db-n1-standard-1 \
+--storage-size=10GB \
+--root-password=password
+
+Task 2: Configure a proxy on a virtual machine
+
+# to start the proxy, we need the connection name of the Cloud SQL instance. We will retrieve the connection name with the following command
+
+gcloud sql instances describe wordpress-db
+
+connection name: qwiklabs-gcp-04-c9dc3439057a:us-central1:wordpress-db
+
+# In addition, for the application to work, we need to create a database on the instance.
+
+gcloud sql databases create wordpress --instance=wordpress-db
+
+# ssh into wordpress-europe-proxy vm
+
+gcloud compute ssh wordpress-europe-proxy --zone=europe-west1-b
+
+# saving the sql instance connection name in an Env variable 
+
+export SQL_CONNECTION=qwiklabs-gcp-04-c9dc3439057a:us-central1:wordpress-db
+
+# Downloading the Cloud SQL Proxy and make it executable
+
+wget https://dl.google.com/cloudsql/cloud_sql_proxy.linux.amd64 -O cloud_sql_proxy && chmod +x cloud_sql_proxy
+
+# Activating the proxy connection to your Cloud SQL database and sending the process to the background
+
+./cloud_sql_proxy -instances=$SQL_CONNECTION=tcp:3306 &
+
+Task 3: Connect an application to the Cloud SQL instance
+
+# Querying the metadata of the wordpress-europe-proxy to get it's external IP
+
+curl -H "Metadata-Flavor: Google" http://169.254.169.254/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip && echo
+
+34.78.239.142
+
+# Going to the wordpress-europe-proxy external IP address in our browser and configure the Wordpress application. We configure 127.0.0.1, localhost as the Database IP because the proxy we initiated listens on this address and redirects that traffic to our SQL server securely.
+
+username: root
+Password : password
+Database Host: 127.0.0.1
+wp-password:e(Tu6*42dLrxpt@I%v
+
+# Wordpress will be installed and we will see a success window.
+
+Task 4: Connect to Cloud SQL via internal IP
+
+# retrieving the private IP of our SQL instance.
+
+gcloud sql instances list
+
+# retrievieving the external IP of wordpress-us-private-ip. this instance is located in the same region as our cloud SQL instance. and we will connect to the sql instance using internal ip of the sql instance.
+
+# copy and paste the external IP of wordpress-us-private-ip in a browser to install and configure wordpress to connect to the SQL instance.
+
+Username: root
+Password : password
+Database Host: 192.168.0.3
+
+# we will get an already installed msg meaning our wordpress is connected to the database. 
+
+-----END OF LAB--------------

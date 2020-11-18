@@ -1,0 +1,92 @@
+Challenge Lab Build and Secure Networks in Google Cloud
+
+In this lab we create Secure remote ssh access via IAP-enabled bastion
+Firewall configuration and review
+
+gcloud config set project qwiklabs-gcp-03-ebe5aa1a057a
+
+Task 1 Check the firewall rules. Remove the overly permissive rules.
+
+# checking the firewall rules of acme vpc
+
+gcloud compute firewall-rules list --sort-by=network
+
+gcloud compute firewall-rules describe open-access
+
+# deleting overly permissive rules mainly 
+
+gcloud compute firewall-rules delete open-access
+
+Take 2 Start the  bastion host instance 
+
+# listing the instances to retrieve the zone and set it as default zone
+
+gcloud compute instances list
+
+gcloud config set compute/zone us-central1-b
+
+# Starting the bastion host
+
+gcloud compute instances start bastion
+
+task 3 Create a firewall rule that allows SSH (tcp/22) from the IAP service.
+
+# creating the firewall rule
+
+gcloud compute firewall-rules create acme-allow-ssh-via-iap \
+--network=acme-vpc \
+--direction=INGRESS \
+--allow=tcp:22 \
+--source-ranges=35.235.240.0/20 \
+--target-tags=iap-ssh
+
+# Applying the firewall rule to the instance
+
+gcloud compute instances add-tags bastion  --tags=iap-ssh
+
+Task 4 Create a firewall rule that allows traffic on HTTP (tcp/80) to any address
+
+# creating the firewall rule
+
+gcloud compute firewall-rules create acme-allow-http \
+--network=acme-vpc \
+--direction=INGRESS \
+--allow=tcp:80 \
+--target-tags=http-server
+
+# Applying the firewall rule 
+
+gcloud compute instances add-tags juice-shop --tags=http-server
+
+Task 5  Create a firewall rule that allows traffic on SSH (tcp/22) from acme-mgmt-subnet network address
+
+# retrieving the acme-mgmt-subnet ip range
+
+gcloud compute networks subnets list --network=acme-vpc
+
+gcloud compute firewall-rules create allow-ssh-from-acme-mgmt \
+--network=acme-vpc \
+--direction=INGRESS \
+--allow=tcp:22 \
+--source-ranges=192.168.10.0/24 \
+--target-tags=http-server
+
+gcloud compute instances add-tags juice-shop --tags=mgmt-ssh
+
+Task 6 SSH to Bastion host and then SSH to juice-shop from Bastion host
+
+# ssh into Bastion 
+
+gcloud compute ssh bastion
+
+# Initializing gcloud with proper credentials on bastion host
+
+gcloud auth login
+
+gcloud config set project qwiklabs-gcp-03-ebe5aa1a057a
+
+# ssh into juice-shop
+
+gcloud compute ssh juice-shop --zone=us-central1-b --internal-ip
+
+--------------END OF LAB-----------

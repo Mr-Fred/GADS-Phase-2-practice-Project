@@ -1,0 +1,185 @@
+Set up and Configure a Cloud Environment in Google Cloud: Challenge Lab
+
+in this lab we are Creating and using VPCs and subnets
+Configuring and launching a Deployment Manager configuration
+Creating a Kubernetes cluster
+Configuring and launching a Kubernetes deployment and service
+Setting up stackdriver monitoring
+Configuring an IAM role for an account
+
+Task 1: Create development VPC manually
+
+# Creating a VPC called griffin-dev-vpc
+
+gcloud compute networks create griffin-dev-vpc \
+--subnet-mode=custom
+
+# creating griffin-dev-wp subnets
+
+gcloud compute networks subnets create griffin-dev-wp \
+--network=griffin-dev-vpc \
+--range=192.168.16.0/20 \
+--region=us-east1
+
+# Creating griffin-dev-mgmt subnet
+
+gcloud compute networks subnets create griffin-dev-mgmt \
+--network=griffin-dev-vpc \
+--range=192.168.32.0/20 \
+--region=us-east1
+
+Task 2: Create production VPC using Deployment Manager
+
+# copying the deployment manager config files from cloud storage 
+
+gsutil cp -r gs://cloud-training/gsp321/dm . & cd dm
+
+# making adjustment to the config file to create the vpc and subnets using code editor. The finished file will look like this : prod-network.yaml is the config file and pro-network.jinja the template
+
+-----Start  prod-network.yaml FILE---------
+imports:
+- path: prod-network.jinja
+
+resources:
+- name: prod-network
+  type: prod-network.jinja
+  properties:
+    region: us-east1
+
+------END FILE----------
+
+------START pro-network.jinja FILE -------
+
+resources:
+{# Network #}
+- name: griffin-prod-vpc
+  type: gcp-types/compute-v1:networks
+  properties:
+    description: "Griffin Production VPC"
+    autoCreateSubnetworks: false
+
+{# Subnets #}
+- name: griffin-prod-wp
+  type: gcp-types/compute-v1:subnetworks
+  properties:
+    ipCidrRange: 192.168.48.0/20
+    network: $(ref.griffin-prod-vpc.selfLink)
+    region: {{ properties['region'] }}
+
+- name: griffin-prod-mgmt
+  type: gcp-types/compute-v1:subnetworks
+  properties:
+    ipCidrRange: 192.168.64.0/20
+    network: $(ref.griffin-prod-vpc.selfLink)
+    region: {{ properties['region'] }}
+
+-------END FILE---------------------
+
+# creating griffin-prod-vpc and its subnets 
+
+gcloud deployment-manager deployments create griffin-prod-vpc --config=prod-network.yaml
+
+
+Task 3: Create bastion host with interface in griffin-dev-mgmt &  griffin-prod-mgmt and that accept ssh connection.
+
+gcloud compute instances create griffin-bastion-host \
+--zone=us-east1-b \
+--machine-type=n1-standard-1 \
+--network-interface=network=griffin-dev-vpc,subnet=griffin-dev-mgmt \
+--network-interface=network=griffin-prod-vpc,subnet=griffin-prod-mgmt \
+--tags=allow-ssh
+
+# creating firwall rules in both network to allow ssh traffic.
+
+gcloud compute firewall-rules create griffin-dev-vpc-allow-ssh \
+--network=griffin-dev-vpc \
+--direction=INGRESS \
+--allow=tcp:22,icmp \
+--target-tags=allow-ssh
+
+gcloud compute firewall-rules create griffin-prod-vpc-allow-ssh \
+--network=griffin-prod-vpc \
+--direction=INGRESS \
+--allow=tcp:22,icmp \
+--target-tags=allow-ssh
+
+Task 4: Create and configure Cloud SQL Instance
+
+# creating the MYSQL instance 
+
+gcloud sql instances create griffin-dev-db \
+--database-version=MYSQL_5_7 \
+--region=us-east1 \
+--root-password=password
+
+# connecting to griffin-dev-db
+
+gcloud sql connect griffin-dev-db --user=root
+
+# once connected creating the worpdress database and creating a user with access to the wordpress database.
+
+CREATE DATABASE wordpress;
+
+GRANT ALL PRIVILEGES ON wordpress.* TO "wp_user"@"%" IDENTIFIED BY "stormwind_rules";
+
+FLUSH PRIVILEGES;
+
+Task 5: Create Kubernetes cluster
+
+# creating the 2 nodes griffin-dev kubernetes clusters
+
+gcloud container clusters create griffin-dev \
+--num-nodes=2 \
+--machine-type=n1-standard-4 \
+--network=griffin-dev-vpc \
+--subnetwork=griffin-dev-wp \
+--zone=us-east1-b \
+--enable-stackdriver-kubernetes
+
+Task 6: Prepare the Kubernetes cluster
+
+# copying the config files for kubernetes from cloud storage 
+
+gsutil cp -r gs://cloud-training/gsp321/wp-k8s .
+
+# editing wp-env.yaml tp create a secret with the MSQL credential we created in task4 and a volume for wordpress to store it files using code editor apply the config to our cluster.
+
+gcloud container clusters get-credentials griffin-dev --zone=us-east1-b
+
+kubectl apply -f wp-env.yaml
+
+# providing key to the service account that provides access to the database for a sidecar container
+
+gcloud iam service-accounts keys create key.json \
+--iam-account=cloud-sql-proxy@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com
+
+kubectl create secret generic cloudsql-instance-credentials \
+--from-file key.json
+
+Task 7: Create a WordPress deployment
+
+# getting the MYSQL instance connection name that will be added to the wordpress deployment wp-deployment.yaml
+
+gcloud sql instances describe griffin-dev-db | grep connection
+
+# added the mysql instance connection name to wp-deployment.yaml using code editor and creating the deployment.
+
+kubectl create -f wp-deployment.yaml
+
+# exposing wp-deployment.yaml deployment
+
+kubectl create -f wp-service.yaml
+
+Task 8: Enable monitoring
+
+# creating an uptime check will be done using the cloud console.
+
+Task 9: Provide access for an additional engineer
+
+# granting new engineer the editor role to the project
+
+gcloud projects add-iam-policy-binding qwiklabs-gcp-01-50d6a49b986d \
+--member='user:student-01-e5bb72fd5665@qwiklabs.net' \
+--role='roles/editor'
+
+---------------END OF LAB-----------

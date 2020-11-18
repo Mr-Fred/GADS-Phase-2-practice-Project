@@ -1,0 +1,162 @@
+LAB Working with multiple VPC networks
+# setting up our environment 
+
+gcloud auth login
+
+gcloud config set project 
+
+Task 1. Create custom mode VPC networks with firewall rules
+
+We are creating two custom networks, managementnet and privatenet, along with firewall rules to allow SSH, ICMP, and RDP ingress traffic.
+
+# Creating the managementnet network
+
+gcloud compute networks create managementnet \
+--subnet-mode=CUSTOM
+
+# creating managementsubnet-us subnets
+
+gcloud compute networks subnets create managementsubnet-us \
+--network=managementnet \
+--region=us-central1 \
+--range=10.130.0.0/20
+
+# Creating the privatenet network
+
+gcloud compute networks create privatenet --subnet-mode=custom
+
+# creating privatesubnet-us subnet
+
+gcloud compute networks subnets create privatesubnet-us \
+--network=privatenet \
+--region=us-central1 \
+--range=172.16.0.0/24
+
+#  creating the privatesubnet-eu subnet
+
+gcloud compute networks subnets create privatesubnet-eu \
+--network=privatenet \
+--region=europe-west1 \
+--range=172.20.0.0/20
+
+# listing the available VPC networks
+
+gcloud compute networks list
+
+#  listing the available VPC subnets (sorted by VPC network)
+
+gcloud compute networks subnets list --sort-by=NETWORK
+
+# Creating the firewall rules for managementnet
+
+gcloud compute firewall-rules create managementnet-allow-icmp-ssh-rdp \
+--direction=INGRESS \
+--priority=1000 \
+--network=managementnet \
+--action=ALLOW \
+--rules=icmp,tcp:22,tcp:3389 \
+--source-ranges=0.0.0.0/0 
+
+# Creating the firewall rules for privatenet
+
+gcloud compute firewall-rules create privatenet-allow-icmp-ssh-rdp \
+--direction=INGRESS \
+--priority=1000 \
+--network=privatenet \
+--action=ALLOW \
+--rules=icmp,tcp:22,tcp:3389 \
+--source-ranges=0.0.0.0/0
+
+# listing all the firewall rules (sorted by VPC network)
+
+gcloud compute firewall-rules list --sort-by=NETWORK
+
+Task 2. Create VM instances
+
+# Creating the managementnet-us-vm instance
+
+gcloud compute instances create managementnet-us-vm \
+--zone=us-central1-c \
+--machine-type=n1-standard-1 \
+--subnet=managementsubnet-us 
+
+# creating the privatenet-us-vm instance
+
+gcloud compute instances create privatenet-us-vm \
+--zone=us-central1-c \
+--machine-type=n1-standard-1 \
+--subnet=privatesubnet-us
+
+# listing all the VM instances (sorted by zone)
+
+gcloud compute instances list --sort-by=ZONE
+
+Task 3. Explore the connectivity between VM instances
+
+# ssh into  mynet-us-vm
+
+gcloud compute ssh  mynet-us-vm --zone=us-central1-c
+
+# Pinging the external IP addresses
+
+ping -c 3 mynet-eu-vm's external IP 
+
+ping -c 3 managementnet-us-vm's external IP
+
+ping -c 3 privatenet-us-vm's external IP
+
+# Pinging the internal IP addresses
+
+# this will work because both vm are on the same netwotk
+
+ping -c 3  mynet-eu-vm's internal IP 
+
+# this will not work because they are on different network
+
+ping -c 3 managementnet-us-vm's internal IP
+
+# this will not work either
+
+ping -c 3 privatenet-us-vm's internal IP
+
+exit ssh
+
+Task 4. Create a VM instance with multiple network interfaces
+
+gcloud compute instances create vm-appliance \
+--zone=us-central1-c \
+--machine-type=n1-standard-4 \
+--network-interface=network=privatenet,subnet=privatesubnet-us \
+--network-interface=network=managementnet,subnet=managementsubnet-us \
+--network-interface=network=mynetwork,subnet=mynetwork 
+
+# Exploring the network interface details
+
+gcloud compute instances describe vm-appliance --zone=us-central1-c
+
+# ssh into vm-appliance
+
+gcloud compute ssh vm-appliance --zone=us-central1-c
+
+# listing the network interfaces within the VM instance
+
+sudo ifconfig | grep inet
+
+# Exploring the network interface connectivity
+
+ping -c privatenet-us-vm's internal IP
+ping -c 3 privatenet-us-vm
+
+ping -c 3 managementnet-us-vm's internal IP
+
+ping -c 3 mynet-us-vm's internal IP
+
+# Pinging mynet-eu-vm's internal IP will not work because vm-appliance does not have an interface on the eu subnet
+
+ping -c 3 mynet-eu-vm's internal IP
+
+# listing the routes for vm-appliance instance
+
+ip route
+
+----------END OF LAB------------

@@ -1,0 +1,57 @@
+Challenge Lab Google Cloud Essential Skills
+
+In this lab we Create a Linux virtual machine instance
+
+Enable public access to VM instance
+
+Running basic Apache Web Server
+
+Test your server
+
+Task 1 Create a Linux VM Instance and Enable Public Access to VM Instance
+
+# setting up my env
+
+gcloud config set project qwiklabs-gcp-01-76f3ee809b71
+gcloud config set compute/zone us-central1-a
+
+# creating apache VM
+
+gcloud compute instances create apache --zone=us-central1-a --tags=http-server
+
+# Enabling Public Access to VM Instance
+
+gcloud compute firewall-rules create apache-allow-http \
+--network=default \
+--direction=INGRESS \
+--allow=tcp:80 \
+--target-tags=http-server
+
+Taske 2 Running a Basic Apache Web Server
+
+# retrieving the external ip of apache. Running this cmd from cloud shell
+
+gcloud compute intances list 
+35.193.161.28
+
+# ssh into apache 
+
+gcloud compute ssh apache
+
+# Installing apache 2 server
+
+sudo apt-get update 
+
+sudo apt-get install -y apache2
+
+Task 3 Test Your Server
+
+# Editing the default apache2 webpage to display "Hello world!"
+
+vi /var/www/html/index.html 
+
+# browsing the apache server
+
+curl http://35.193.161.28
+
+--------------END OF LAB-------------

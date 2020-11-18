@@ -1,0 +1,25 @@
+Kerberos is a computer-network mutual authentication protocol that works on the basis of tickets to allow clients to communicate with servers over a non-secure network to prove their identity to one another in a secure manner.
+
+The protocol was named after the character Kerberos (or Cerberus) from Greek mythology, the ferocious three-headed guard dog of Hades.  The idea behind Kerberos is simple: authenticating users while avoiding sending passwords over the network.
+
+The main components of the Kerberos authentication system is the Key distribution Center (KDC). The KDC has two components working seperately but as one, mainly the Authenticating Server (AS) and the Ticket granting Service (TGS). 
+
+The KDC has a records of all users and services, present on the network, IDs and passwords. Basically, For a user on the network to be able to use a service, it must make a request to the KDC in other to be authenticated. Once authenticated the KDC will provide the user with a timestamped ticket and session key, that the user can use to authenticate itself to the service it want to use and vice versa.
+
+These are the steps involved Kerberos Authentication:
+
+1- A Client wants to access an application service. It makes an authentication and a Ticket-Granting Ticket (TGT) request to the Authentication Server (AS) of Kerberos KDC.
+
+2- The Kerberos AS authenticates the client and returns a TGT and a Client/TGS Session Key encrypted using the password of the client. The TGT includes the client ID, client network address, ticket validity period, and the client/TGS session key, and is encrypted using the TGS secret key. The TGT can only be decrypted by the TGS.
+
+3- Once the client receices the TGT and the client/TGS session key, it will send a ticket request for the application server to the TGS. This request consists of the two messages, the TGT and an authenticator. The authenticator is compsed of the client ID and the timestamp encrypted using the Client/TGS Session Key. 
+
+When the TGS receives the two messages from the client, it decrypts the TGT with it secret key to retrieve the Client/TGS session key which it will use to decrypt the autetication message that also contains the service the client is requesting.
+
+4- The Kerberos TGS returns a Client/Server ticket and a Client/Server session key to the Client. The client/Server ticket is encrypted by the TGS using the server's, requested by the client, secret key. And the Client/Server session key is encrypted using the Client/TGS session key.
+
+5- The clent sends the Client/Server ticket to the application server plus an authenticator messahe encrypted using the Client/Server session key. Upon receiving the ticket and the authenticator, the server can retrieve the Client/Server session from the Client/Server ticket by decrypting it using it secret key. Once he gets the session key he can decrypt the authenticator to authenticate the client by comparing the data in both messages.
+
+6- The server replies to the Client with another authenticator encrypted using the Client/Server session key. On receiving this authenticator, the Client can authenticate the server. From that point the client and server can securily exchange data.
+
+The beauty of Kerberos lies in two aspect. First at no point passwords are sent over the network and second the client and server mutually authenticate themselves.

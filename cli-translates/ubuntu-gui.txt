@@ -1,0 +1,8 @@
+sudo apt-get install -y xrdp
+sudo apt-get install -y xfce4
+sudo service xrdp restart
+
+sudo -s #to switch to root usr
+passwd # to create a password 
+
+Open port 3389 on the network to allow rdp connexion.

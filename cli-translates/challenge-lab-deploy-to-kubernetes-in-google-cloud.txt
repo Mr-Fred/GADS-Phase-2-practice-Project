@@ -1,0 +1,151 @@
+Deploy to Kubernetes in Google Cloud: Challenge Lab
+
+In the lab, we are Creating Docker images on a host.
+Running Docker containers on a host.
+Storing Docker images in the Google Container Repository (GCR).
+Deploying GCR images on Kubernetes.
+Pushing updates onto Kubernetes.
+Automating deployments to Kubernetes using Jenkins.
+
+# Setting up our environment
+
+gcloud auth login 
+
+gcloud config set compute/region us-east1
+
+gcloud config set compute/zone us-east1-b
+
+gcloud config set project qwiklabs-gcp-04-b5ab6602e4d9
+
+export PROJECT_ID=qwiklabs-gcp-04-b5ab6602e4d9
+
+Task 1: Create a Docker image and store the Dockerfile
+
+# cloning the valkyrie-app
+
+gcloud source repos clone valkyrie-app --project=$PROJECT_ID
+
+# creating the docker file
+
+cd valkyrie-app
+
+vi Dockerfile 
+
+-----------------start file-----------------------
+
+FROM golang:1.10
+WORKDIR /go/src/app
+COPY source .
+RUN go install -v
+ENTRYPOINT ["app","-single=true","-port=8080"]
+
+---------------------end of file--------------------
+
+# creating the image valkyrie-app:v0.0.1
+
+docker build -t valkyrie-app:v0.0.1 .
+
+Task 2: Test the created Docker image
+
+docker run -p 8080:8080 --name valkyrie-app valkyrie-app:v0.0.1 &
+
+Task 3: Push the Docker image in the Container Repository
+
+# tagging the container for google container registry
+
+docker tag valkyrie-app:v0.0.1  gcr.io/$PROJECT_ID/valkyrie-app:v0.0.1
+
+# Pushing the image to GCR 
+
+docker push gcr.io/$PROJECT_ID/valkyrie-app:v0.0.1 
+
+Task 4: Create and expose a deployment in Kubernetes
+
+# moving to the directory where the deployment files are and edit them 
+
+cd valkyrie-app/k8s
+ls
+# insert the image into the manifest
+
+vi deployment.yaml
+
+# getting credentials for kubectl
+
+gcloud container clusters get-credentials valkyrie-dev --zone=us-east1-d
+# creating the deployment and service
+
+kubectl create -f deployment.yaml 
+
+kubectl create -f service.yaml
+
+Task 5: Update the deployment with a new version of valkyrie-app
+
+# Scaling the deployment
+
+kubectl scale deployment valkyrie-dev --replicas=3
+
+# creating valkyrie:v0.0.2 image and pushing it to GCR
+
+cd ..
+
+git merge origin/kurt-dev
+
+docker build -t valkyrie-app:v0.0.2 .
+
+docker tag valkyrie-app:v0.0.2  gcr.io/$PROJECT_ID/valkyrie-app:v0.0.2 
+
+docker push gcr.io/$PROJECT_ID/valkyrie-app:v0.0.2
+
+# rolling out the new version of valkyrie-app
+
+kubectl edit deployment valkyrie-dev
+
+# Replaced the image of the container with the new image
+-------------start file ----------
+...
+containers:
+  image: gcr.io/$PROJECT_ID/valkyrie-app:v0.0.2
+...
+-------------END FILE -------------
+
+# saved the file and check status of the rollout
+
+kubectl rollout status deployment/valkyrie-dev
+
+Task 6: Create a pipeline in Jenkins to deploy your app
+
+# retrieving  jenkins admin password
+
+printf $(kubectl get secret cd-jenkins -o jsonpath="{.data.jenkins-admin-password}" | base64 --decode);echo
+
+waMe4XYbCz
+
+# retrieving the PID of all running containers and killing them
+
+docker ps 
+
+ docker kill [container_id]
+
+# Connecting to the Jenkins console with cmd below and previewing cloud shell on port 8080 to have access to the web interface of Jenkins
+
+export POD_NAME=$(kubectl get pods --namespace default -l "app.kubernetes.io/component=jenkins-master" -l "app.kubernetes.io/instance=cd" -o jsonpath="{.items[0].metadata.name}")
+kubectl port-forward $POD_NAME 8080:8080 >> /dev/null & 
+
+# Setup our credentials to use Google Service Account from metadata from the jenkins web interface
+
+# Creating a pipeline job that points to our */master branch of our source code in the jenkins console
+
+# Editing valkyrie-app/Jenkinsfile and changing OUR_PROJECT to the actual project
+
+vi Jenkinsfile
+
+# Editing valkyrie-app/source/html.go and changing the two occurrences of green to orange.
+
+vi source/html.go
+
+# adding then committing all changes the master branch and then push to origin master 
+
+git commit -am "jenkins commit" 
+
+git push origin master
+

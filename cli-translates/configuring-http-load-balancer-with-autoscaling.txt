@@ -1,0 +1,264 @@
+LAB Configuring an HTTP Load Balancer with Autoscaling
+
+In this lab we : Create a health check firewall rule
+Create a NAT configuration using Cloud Router
+Create a custom image for a web server
+Create an instance template based on the custom image
+Create two managed instance groups
+Configure an HTTP load balancer with IPv4 and IPv6
+Stress test an HTTP load balancer
+
+# setting up our environment
+
+gcloud auth login
+
+gcloud config set project 
+
+Task 1. Configure a health check firewall rule
+
+# Creating the health check rule
+
+gcloud compute firewall-rules create fw-allow-health-checks \
+--network=default \
+--direction=INGRESS \
+--priority=1000 \
+--action=ALLOW \
+--rules=tcp:80 \
+--source-ranges=130.211.0.0/22,35.191.0.0/16 \
+--target-tags=allow-health-checks
+
+Task 2: Create a NAT configuration using Cloud Router 
+
+# Creating the Cloud Router instance
+
+gcloud compute routers create nat-router-us-central1 \
+--region=us-central1 \
+--network=default
+
+# creating the NAT gateway
+
+gcloud compute routers nats create nat-config \
+--router=nat-router-us-central1 \
+--auto-allocate-nat-external-ips \
+--nat-all-subnet-ip-ranges \
+--region=us-central1
+
+# Task 3: Create a custom image for a web server
+
+gcloud compute instances create webserver \
+--zone=us-central1-a \
+--machine-type=f1-micro \
+--network=default \
+--no-address \
+--no-boot-disk-auto-delete \
+--tags=allow-health-checks \
+--metadata=startup-script="#! bin/bash 
+sudo apt-get update
+sudo apt-get install -y apache2
+sudo service apache2 start"
+
+# Customizing the VM. the steps to customize the vm has been provided in the startup script at the creation of the instance. So the following commands are not necessary.
+
+sudo apt-get update
+sudo apt-get install -y apache2
+sudo service apache2 start
+
+# test the default page for the Apache2 server on our vm
+
+gcloud compute ssh webserver --zone=us-central1-a --tunnel-through-iap
+
+curl localhost
+
+# Setting the Apache service to start at boot. this is not necessary since we already configure a startup script for the webserver
+
+sudo update-rc.d apache2 enable
+
+exit ssh
+
+# resetting the vm to make sure our webserver start when an instance restart.
+
+gcloud compute instances reset webserver --zone=us-central1-a
+
+# Checking the server by connecting via SSH to the VM. The result should show Started The Apache HTTP Server
+
+gcloud compute ssh webserver --zone=us-central1-a  --tunnel-through-iap
+
+sudo service apache2 status
+
+# Verify that the boot disk will not be deleted when the instance is deleted. this command will show details about the vm in json format. we need to check that autodelete-boot-disk is set to false.
+
+gcloud compute instances describe webserver --zone=us-central1-a --format json
+
+# deleting our vm instance webserver
+
+gcloud compute instances delete webserver --zone=us-central1-a
+
+# Creating the custom image
+
+gcloud compute images create mywebserver \
+--source-disk=webserver \
+--source-disk-zone=us-central1-a
+
+# deleting the disk 
+
+gcloud compute disks delete webserver --zone=us-central1-a
+
+Task 4. Configure an instance template and create instance groups
+
+# Configuring the instance template
+
+gcloud compute instance-templates create mywebserver-template \
+--machine-type=f1-micro \
+--image=mywebserver \
+--tags=allow-health-checks \
+--no-address
+
+# Before creating the instance group we need to create a health checker first.
+
+gcloud compute health-checks create tcp http-health-check \
+--global \
+--port=80
+
+# creating the us-central1-mig instance group
+
+gcloud compute instance-groups managed create us-central1-mig \
+--region=us-central1 \
+--template=mywebserver-template \
+--size=1 \
+--health-check=http-health-check \
+--initial-delay=60
+
+# setting the auto scalling 
+
+gcloud compute instance-groups managed set-autoscaling us-central1-mig \
+--region=us-central1 \
+--min-num-replicas=1 \
+--max-num-replicas=2 \
+--cool-down-period=60 \
+--scale-based-on-load-balancing \
+--target-load-balancing-utilization=0.8
+
+# Configuring a name port that will be used by the load balancer
+
+gcloud compute instance-groups managed set-named-ports us-central1-mig \
+--named-ports http:80 \
+--region=us-central1
+
+# creating the europe-west1-mig instance group
+
+gcloud compute instance-groups managed create europe-west1-mig \
+--region=europe-west1 \
+--template=mywebserver-template \
+--health-check=http-health-check \
+--initial-delay=60 \
+--size=1
+
+# setting the auto scalling 
+
+gcloud compute instance-groups managed set-autoscaling europe-west1-mig \
+--region=europe-west1 \
+--min-num-replicas=1 \
+--max-num-replicas=2 \
+--cool-down-period=60 \
+--scale-based-on-load-balancing \
+--target-load-balancing-utilization=0.8
+
+# Configuring a name port that will be used by the load balancer
+
+gcloud compute instance-groups managed set-named-ports europe-west1-mig \
+--named-ports http:80 \
+--region=europe-west1
+
+# Verifying the backends
+
+gcloud compute instance-groups managed list 
+
+gcloud compute instance-groups managed list-instances us-central1-mig --region=us-central1
+
+gcloud compute instance-groups managed list-instances europe-west1-mig --region=europe-west1
+
+Task 5. Configure the HTTP load balancer
+
+# Configuring the backend
+ 1-step creating the backend service
+
+gcloud compute backend-services create http-backend \
+--protocol=HTTP \
+--health-checks=http-health-check \
+--port-name=http \
+--global
+ 
+ 2-step adding the backend instance group
+
+gcloud compute backend-services add-backend http-backend \
+--instance-group=us-central1-mig \
+--instance-group-region=us-central1 \
+--balancing-mode=RATE \
+--max-rate-per-instance=50 \
+--capacity-scaler=1.0 \
+--global
+
+gcloud compute backend-services add-backend http-backend \
+--instance-group=europe-west1-mig \
+--instance-group-region=europe-west1 \
+--balancing-mode=UTILIZATION \
+--max-utilization=0.8 \
+--capacity-scaler=1.0 \
+--global
+
+3-step creating the url map to direct traffic to the backend service
+
+gcloud compute url-maps create http-lb \
+--default-service=http-backend \
+--global
+
+  4-step creating the load balancer proxy that will be receiving the traffic from the frontend. 
+
+gcloud compute target-http-proxies create http-lb-proxy \
+--url-map=http-lb \
+--global-url-map
+
+  5-step creating the forwading rule. these will serve as our frontend in conjonction with the proxy. 
+
+gcloud compute forwarding-rules create http-ipv4-frontend \
+--target-http-proxy=http-lb-proxy \
+--ip-protocol=TCP \
+--global \
+--ip-version=IPV4 \
+--ports=80
+
+gcloud compute forwarding-rules create http-ipv6-frontend \
+--target-http-proxy=http-lb-proxy \
+--ip-protocol=TCP \
+--ip-version=IPV6 \
+--ports=80 \
+--global
+
+# browsing the ipv4 associate to our frontend to verify our load balancer is up and running.
+
+http:\\34.96.93.139
+
+Task 6. Stress test the HTTP load balancer
+
+# creating a utility vm 
+
+gcloud compute instances create stress-test \
+--zone=us-west1-c \
+--machine-type=f1-micro \
+--image=mywebserver
+
+# ssh into stress-test vm
+
+gcloud compute ssh stress-test --zone=us-west1-c 
+
+# saving the LB ipv4 in an envireonment variable
+
+export LB_IP=34.120.227.11
+
+#  placing a load of 500000 rps in batch of 1000 on the load balancer
+
+ab -n 500000 -c 1000 http://$LB_IP/
+
+# verifying the result in the cloud console.
+
+--------------END OF LAB------------

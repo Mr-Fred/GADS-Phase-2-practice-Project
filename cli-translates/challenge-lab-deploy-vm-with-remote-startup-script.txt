@@ -1,0 +1,56 @@
+Deploy a Compute Instance with a Remote Startup Script
+
+In this lab we Create a storage bucket for startup scripts.
+Create a virtual machine that runs a startup script from Cloud Storage.
+Configure HTTP access for the virtual machine.
+Deploy an application on an instance.
+
+# Setting up my environment
+
+gcloud config set project proj_id
+
+Task 1 Create a storage bucket for startup scripts
+
+# creating the storage bucket
+
+gsutil mb gs://apache-scripts-bucket
+
+export BUCKET=gs://apache-scripts-bucket
+
+# creating the startup script file
+
+nano install-web.sh
+---------START OF FILE-----
+ #!/bin/bash
+apt-get update
+apt-get install -y apache2
+------END OF FILE-----------
+
+# copying the startup script to the bucket 
+
+gsutil cp install-web.sh $BUCKET/install-web.sh
+
+Task 2 Create a virtual machine that runs a startup script from Cloud Storage
+
+gcloud compute instances create apache-web \
+--zone=us-central1-a \
+--metadata=startup-script-url=$BUCKET/install-web.sh \
+--tags=http-server
+
+Task 3 Configure HTTP access for the virtual machine
+
+gcloud compute firewall-rules create apache-allow-http \
+--network=default \
+--direction=INGRESS \
+--allow=tcp:80 \
+--target-tags=http-server
+
+Task 4 Access the web server 
+
+# retrieving the external ip of the server
+
+gcloud compute instances list
+
+# browsing the external ip
+
+http://34.69.129.2

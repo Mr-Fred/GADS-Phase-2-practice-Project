@@ -1,0 +1,64 @@
+LAB Google Cloud Fundamentals: Getting Started with BigQuery
+
+Task 1: Sign in to the Google Cloud Platform and setting up our environment
+
+gcloud auth login
+
+gcloud config set project 
+
+Task 2: Load data from Cloud Storage into BigQuery
+
+# Creating a logdata dataset
+
+bq --location=US mk -d \
+logdata
+
+# creating a table in the logdata dataset. The cmd will create and load data 
+into the accesslog table from a cloud storage bucket.
+
+bq load \
+--location=US \
+--autodetect \
+--source_format=CSV \
+logdata.accesslog \
+gs://cloud-training/gcpfci/access_log.csv
+
+# creating a table in the logdata dataset. this cmd will create a data definition file using the schema of the storage bucket data. We will then use that file to create our new table. With this method the data reside in the storage bucket and not in bigquery.
+
+bq mkdef \
+--autodetect \
+--source_format=CSV \
+"gs://cloud-training/gcpfci/access_log.csv" > /tmp/accesslog
+
+# creating the table accesslog using the accesslog.json file
+
+bq mk \
+--external_table_definition=/tmp/accesslog.json \
+logdata.accesslog
+
+# Viewing details about accesslog table
+
+bq show --format=prettyjson logdata.accesslog
+
+
+# to preview the data 
+
+bq head logdata.accesslog 
+
+Task 3: Perform a query on the data using the BigQuery web UI
+
+bq query --nouse_legacy_sql \
+"select int64_field_6 as hour, count(*) as hitcount 
+from logdata.accesslog
+group by hour
+order by hour"
+
+Task 4: Perform a query on the data using the bq command
+
+bq query \
+"select string_field_10 as request, count(*) as requestcount 
+from logdata.accesslog 
+group by request 
+order by requestcount desc"
+
+----END OF LAB------

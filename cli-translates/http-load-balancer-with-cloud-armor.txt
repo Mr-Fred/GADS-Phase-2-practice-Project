@@ -1,0 +1,206 @@
+LAB HTTP Load Balancer with Cloud Armor
+
+# Setting up my environment
+
+export PROJECT_ID=qwiklabs-gcp-04-7ba532dbb91e
+export ZONE=
+export REGION=
+
+gcloud config set project $PROJECT_ID
+gcloud config set compute/region $REGION
+gcloud config set compute/zone $ZONE
+
+Task 1 Configure HTTP and health check firewall rules
+
+# Create the HTTP firewall rule
+
+gcloud compute firewall-rules create default-allow-http \
+--network=default \
+--direction=INGRESS \
+--allow=tcp:80 \
+--target-tags=http-server
+
+# Create the health check firewall rules
+
+gcloud compute firewall-rules create default-allow-health-check \
+--network=default \
+--direction=INGRESS \
+--allow=tcp:80 \
+--target-tags=http-server \
+--source-ranges=130.211.0.0/22,35.191.0.0/16
+
+Task 2 Configure instance templates and create instance groups
+
+# Configure the instance templates
+
+gcloud compute instance-templates create us-east1-template \
+--metadata=startup-script-url=gs://cloud-training/gcpnet/httplb/startup.sh \
+--subnet=default \
+--region=us-east1 \
+--tags=http-server
+
+gcloud compute instance-templates create europe-west1-template \
+--metadata=startup-script-url=gs://cloud-training/gcpnet/httplb/startup.sh \
+--subnet=default \
+--region=europe-west1 \
+--tags=http-server
+
+# Create the managed instance groups
+
+gcloud compute instance-groups managed create us-east1-mig \
+--template=us-east1-template \
+--region=us-east1 \
+--size=1
+
+gcloud compute instance-groups managed set-autoscaling us-east1-mig \
+--scale-based-on-cpu \
+--target-cpu-utilization=0.8 \
+--min-num-replicas=1 \
+--max-num-replicas=5 \
+--cool-down-period=45 \
+--region=us-east1
+
+gcloud compute instance-groups managed set-named-ports us-east1-mig \
+--named-ports=http:80 \
+--region=us-east1
+
+gcloud compute instance-groups managed create europe-west1-mig \
+--template=europe-west1-template \
+--region=europe-west1 \
+--size=1
+
+gcloud compute instance-groups managed set-autoscaling europe-west1-mig \
+--scale-based-on-cpu \
+--target-cpu-utilization=0.8 \
+--min-num-replicas=1 \
+--max-num-replicas=5 \
+--cool-down-period=45 \
+--region=europe-west1
+
+gcloud compute instance-groups managed set-named-ports europe-west1-mig \
+--named-ports=http:80 \
+--region=europe-west1
+
+# Verifying the backends and browing their external IP
+
+gcloud compute instances list 
+
+Task 3 Configure the HTTP Load Balancer
+
+# Configuring the backend
+
+gcloud compute health-checks create tcp http-health-check \
+--port=80 \
+--global
+
+gcloud compute backend-services create http-backend \
+--health-checks=http-health-check \
+--global-health-checks \
+--port-name=http \
+--protocol=http \
+--global
+
+gcloud compute backend-services add-backend http-backend \
+--instance-group=us-east1-mig \
+--instance-group-region=us-east1 \
+--balancing-mode=rate \
+--max-rate-per-instance=50 \
+--capacity-scaler=1 \
+--global
+
+gcloud compute backend-services add-backend http-backend \
+--instance-group=europe-west1-mig \
+--instance-group-region=europe-west1 \
+--balancing-mode=utilization \
+--max-utilization=0.8 \
+--capacity-scaler=1 \
+--global
+
+gcloud compute url-maps create http-lb \
+--default-service=http-backend \
+--global
+
+gcloud compute target-http-proxies create http-lb-proxy \
+--url-map=http-lb \
+--global-url-map \
+--global
+
+gcloud compute forwarding-rules create http-frontend \
+--target-http-proxy=http-lb-proxy \
+--global-target-http-proxy \
+--ip-protocol=tcp \
+--ip-version=ipv4 \
+--ports=80 \
+--global
+
+gcloud compute forwarding-rules create http-frontend6 \
+--target-http-proxy=http-lb-proxy \
+--global-target-http-proxy \
+--ip-protocol=tcp \
+--ip-version=ipv6 \
+--ports=80 \
+--global
+
+Task 4 Test the HTTP Load Balancer
+
+# Accessing the HTTP Load Balancer
+
+gcloud compute forwarding-rules list #to retrieve their ip address
+
+http://34.120.99.90
+
+http://2600:1901:0:f229::
+
+# Stress testing the HTTP Load Balancer with siege-vm
+
+gcloud compute instances create siege-vm \
+--zone=us-west1-c
+
+# SSH into siege-vm
+
+gcloud compute ssh siege-vm --zone=us-west1-c
+
+# installing siege 
+
+sudo apt-get -y install siege
+
+export LB_IP=34.120.99.90
+
+siege -c 250 http://$LB_IP
+
+# view how the traffic is balanced in the cloud console 
+
+ctrl+c to stop siege
+
+Task 5 Denylist the siege-vm using cloud armor
+
+# creating a security policy 
+
+gcloud compute security-policies create denylist-siege
+
+# adding rule to the security policy
+
+gcloud compute security-policies rules create 1000 \
+--security-policy=denylist-siege \
+--src-ip-ranges=35.203.136.79 \
+--action="deny-403"
+
+# attaching the security policy to our backend service
+
+gcloud compute backend-services update http-backend \
+--security-policy=denylist-siege \
+--global
+
+# Verifying the security policy
+
+gcloud compute ssh siege-vm --zone=us-west1-c
+
+curl http://$LB_IP
+
+# lauching a new attack and viewing the security logs in cloud armor to see if the attack is being blocked by cloud armor
+
+siege -c 250 http://$LB_IP
+
+# viewing the logs in cloud console
+
+-------END OF LAB-----------

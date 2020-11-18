@@ -1,0 +1,132 @@
+LAB Getting Started with VPC Networking
+
+# setting up our environment
+
+gcloud auth login
+
+gcloud config set project 
+
+Task 1. Explore the default network
+
+# viewing the default network and its subnets
+
+gcloud compute networks describe defaault
+
+# Viewing the routes
+
+gcloud compute routes list --filter="network=default"
+
+#viewing firewall rules
+
+gcloud compute firewall-rules list --filter network=default
+
+
+# deleting the default firewall rules
+
+gcloud compute firewall-rules delete default-allow-icmp, default-allow-rdp, default-allow-ssh, default-allow-internal
+
+# Delete the default network
+
+gcloud compute networks delete default
+
+Task 2. Create a VPC network and VM instances
+
+# Creating an auto mode VPC network
+
+gcloud compute networks create mynetwork \
+--subnet-mode=auto 
+
+# creating the firewall rules
+
+gcloud compute firewall-rules create mynetwork-allow-icmp \
+--network=mynetwork \
+--priority=1000 \
+--direction=INGRESS \
+--action=ALLOW \
+--rules=icmp,tcp:22,tcp:3389 \
+--source-ranges=0.0.0.0/0 
+
+gcloud compute firewall-rules create mynetwork-allow-rdp \
+--network=mynetwork \
+--priority=1000 \
+--direction=INGRESS \
+--action=ALLOW \
+--rules=tcp:3389 \
+--source-ranges=0.0.0.0/0 
+
+gcloud compute firewall-rules create mynetwork-allow-ssh \
+--network=mynetwork \
+--priority=1000 \
+--direction=INGRESS \
+--action=ALLOW \
+--rules=tcp:22 \
+--source-ranges=0.0.0.0/0 
+
+gcloud compute firewall-rules create dmynetwork-allow-internal \
+--network=mynetwork \
+--priority=65534 \
+--direction=INGRESS \
+--action=ALLOW
+--rules=ALL \
+--source-ranges=10.128.0.0/9 
+
+# verifying that subnet was created for our network
+
+gcloud compute networks describe mynetwork
+
+# Create a VM instance in us-central1
+
+gcloud compute instances create mynet-us-vm \
+--network=mynetwork \
+--zone=us-central1-c \
+--machine-type=f1-micro \
+--image=debian-9-stretch-v20200910 \
+--image-project=debian-cloud 
+
+# Creating a VM instance in europe-west1
+
+gcloud compute instances create mynet-eu-vm \
+--network=mynetwork \
+--zone=europe-west1-c \
+--machine-type=f1-micro \
+--image=debian-9-stretch-v20200910 \
+--image-project=debian-cloud 
+
+Task 3. Explore the connectivity for VM instances
+
+# Verify connectivity for the VM instances
+
+gcloud compute instances list #to view instances IP addr
+
+gcloud compute ssh mynet-us-vm --zone=us-central1-c
+
+# from mynet-us-vm pinging mynet-eu-vm. this works because we created firewall rule to allow this type of traffic
+
+ping -c 3 mynet-eu-vm's internal IP
+
+ping -c 3 mynet-eu-vm
+
+ping -c 3 mynet-eu-vm's external IP
+
+# Removing the allow-icmp firewall rules
+
+gcloud compute firewall-rules delete allow-icmp
+
+# testing connectivity to mynet-eu-vm's internal IP. this should work because of allow-internal
+
+ping -c 3 mynet-eu-vm's internal IP
+
+# testing connectivity to mynet-eu-vm's external IP. this should fail because allow-icmp has been deleted
+
+ping -c 3 mynet-eu-vm's external IP
+# Removing the allow-internal firewall rules
+
+gcloud compute firewall-rules delete mynetwork-allow-internal
+
+# testing connectivity to mynet-eu-vm's internal IP. this should fail because allow-internal has been deleted
+
+ping -c 3 mynet-eu-vm's internal IP
+
+exit ssh session
+
+------------END OF LAB------------------

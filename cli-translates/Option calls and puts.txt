@@ -1,0 +1,19 @@
+Strategy 
+
+Selling covered call and puts
+
+Options are contracts of buy or sale of 100 share of a stock at a fixed price before an expiration.
+
+Put (SALE) options allow the holder to sell at the stated “strike” price, whereas call (BUY) options give the holder the right to buy at the strike price at any time until expiration. 
+
+Buyers of options pay what’s called a “premium” for these rights. Premium are the contract price.
+
+Premium rises if share rise. Puts increase in value if share fall
+
+Buy-Writes is when you buy a 100 share at 35 for exaample and accepts contract to sell at 40. So if the contract expire worthless you make make more money.
+
+Corvered calls is when you already own the stock and accept a puts option on it. You gain the premium ig the contract expire worthless but surrender 100 shares if the strike price is hit.
+
+Selling calls means accepting to sell shares at the strike price.
+Selling puts ??
+

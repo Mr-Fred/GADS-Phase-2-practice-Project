@@ -1,0 +1,137 @@
+Getting Started: Create and Manage Cloud Resources: Challenge Lab
+
+Topics tested:
+
+Create an instance.
+Create a 3 node Kubernetes cluster and run a simple service.
+Create an HTTP(s) Load Balancer in front of two web servers.
+
+# Setting up my environment 
+
+gcloud config set project qwiklabs-gcp-02-523ec2c755a4
+gcloud config set compute/region us-east1
+
+Task 1: Create a project jumphost instance
+
+gcloud compute instances create nucleus-jumphost \
+--zone=us-east1-b \
+--machine-type=f1-micro
+
+Task 2: Create a Kubernetes service cluster
+
+# Creating a cluster (in the us-east1-b zone) to host the service
+
+gcloud container clusters create nucleus-cluster \
+--zone=us-east1-b \
+--num-nodes=3 
+
+# deploying a Docker container hello-app
+
+gcloud container clusters get-credentials nucleus-cluster --zone=us-east1-b
+
+kubectl create deployment hello-app --image=gcr.io/google-samples/hello-app:2.0
+
+# Exposing the app on port 8080
+
+kubectl expose deployment hello-app --type=LoadBalancer --port=80 --target-port=8080
+
+Task 3: Setup an HTTP load balancer
+
+# creating my startup script
+
+cat << EOF > startup.sh
+#! /bin/bash
+apt-get update
+apt-get install -y nginx
+service nginx start
+sed -i -- 's/nginx/Google Cloud Platform - '"\$HOSTNAME"'/' /var/www/html/index.nginx-debian.html
+EOF
+
+# creating the instance template 
+
+gcloud compute instance-templates create nucleus-nginx-template \
+--machine-type=f1-micro \
+--metadata-from-file=startup-script=startup.sh \
+--tags=http-allow-health-check,http-server
+
+# Creating my firewall rules 
+
+gcloud compute firewall-rules create nucleus-http-health-check-fw \
+--direction=INGRESS \
+--network=default \
+--action=ALLOW \
+--rules=tcp \
+--source-ranges=130.211.0.0/22,35.191.0.0/16 \
+--target-tags=http-allow-health-check
+
+gcloud compute firewall-rules create nucleus-http-allow \
+--direction=INGRESS \
+--network=default \
+--action=ALLOW \
+--rules=tcp:80 \
+--source-ranges=0.0.0.0/0 \
+--target-tags=http-server
+
+# creating the health check
+
+gcloud compute http-health-checks create nucleus-http-health-check \
+--port=80
+
+# creating the target pool
+
+gcloud compute target-pools create nucleus-nginx-pool \
+--region=us-east1 \
+--http-health-check=nucleus-http-health-check
+
+# creating the instance group
+
+gcloud compute instance-groups managed create nucleus-nginx-group \
+--region=us-east1 \
+--template=nucleus-nginx-template \
+--size=2 \
+--http-health-check=nucleus-http-health-check \
+--target-pool=nucleus-nginx-pool \
+--base-instance-name=nucleus-nginx
+
+# setting name port for the instance group
+
+gcloud compute instance-groups set-named-ports nucleus-nginx-group \
+--named-ports=http:80 \
+--region=us-east1
+
+# creating the backend service
+
+gcloud compute backend-services create nucleus-nginx-backend \
+--global \
+--http-health-checks=nucleus-http-health-check \
+--network=default \
+--protocol=http \
+--port-name=http
+
+# adding the instance group to the backend
+
+gcloud compute backend-services add-backend nucleus-nginx-backend \
+--instance-group=nucleus-nginx-group \
+--instance-group-region=us-east1 \
+--global
+
+# creating the url-map
+
+gcloud compute url-maps create nucleus-nginx-lb \
+--default-service=nucleus-nginx-backend \
+--global
+
+# creating the proxy
+
+gcloud compute target-http-proxies create nucleus-lb-proxy \
+--url-map=nucleus-nginx-lb \
+--global-url-map \
+--global
+
+# creating the frontend 
+
+gcloud compute forwarding-rules create nucleus-nginx-frontend \
+--target-http-proxy=nucleus-lb-proxy \
+--global \
+--ip-version=IPV4 \
+--ports=80

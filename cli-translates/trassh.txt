@@ -1,0 +1,39 @@
+gcloud compute firewall-rules create mynetwork-allow-icmp \
+--network=mynetwork \
+--direction=ingress \
+--allow=icmp
+
+gcloud compute firewall-rules create mynetwork-allow-ssh \
+--network=mynetwork \
+--direction=ingress \
+--allow=tcp:22
+
+gcloud compute firewall-rules create mynetwork-allow-rdp \
+--network=mynetwork \
+--direction=ingress \
+--allow=tcp:3389
+
+gcloud compute firewall-rules create privatenet-allow-ssh \
+--network=privatenet \
+--direction=ingress \
+--allow=tcp:22 \
+--source-ranges=35.235.240.0/20
+
+
+gcloud compute instances create vm-internal \
+--zone=us-central1-c \
+--network=privatenet \
+--subnet=privatenet-us \
+--machine-type=n1-standard-1 \
+--no-address
+
+gcloud compute networks subnets create managementsubnet-us \
+--network=managementnet \
+--region=us-central1 \
+--range=10.130.0.0/20
+
+gcloud compute routers nats create NAT_CONFIG \
+    --router=NAT_ROUTER \
+    --auto-allocate-nat-external-ips \
+    --nat-all-subnet-ip-ranges \
+    --enable-logging

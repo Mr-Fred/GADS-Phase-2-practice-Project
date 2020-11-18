@@ -1,0 +1,150 @@
+LAB Implement Private Google Access and Cloud NAT
+
+# Setting up our environment
+
+gcloud auth login
+
+gcloud config set project
+
+Task 1. Create the VM instance
+
+# First Creating a VPC network and firewall rules
+
+gcloud compute networks create privatenet \
+--subnet-mode=CUSTOM
+
+# creating subnet
+
+gcloud compute networks subnets create privatenet-us \
+--region=us-central1 \
+--range=10.130.0.0/20 \
+--network=privatenet
+
+# creating firewall rule to allow ssh connection through IAP tunnel
+
+gcloud compute firewall-rules create privatenet-allow-ssh \
+--network=privatenet \
+--direction=INGRESS \
+--priority=1000 \
+--source-ranges=35.235.240.0/20 \
+--action=ALLOW \
+--rules=tcp:22
+
+
+gcloud compute instances create vm-internal \
+--subnet=privatenet-us \
+--machine-type=n1-standard-1 \
+--zone=us-central1-c \
+--image=debian-10-buster-v20200910 \
+--image-project=debian-cloud \
+--boot-disk-size=10GB \
+--boot-disk-type=pd-standard \
+--no-address
+
+# SSH to vm-internal to test the IAP tunnel
+
+gcloud compute ssh vm-internal --zone us-central1-c --tunnel-through-iap
+
+# testing the external connectivity of vm-internal, run the following command. command will fail
+
+ping -c 2 www.google.com
+
+exit ssh 
+
+Task 2. Enable Private Google Access
+
+# Creating a Cloud Storage bucket
+export MY_BUCKET=qwiklabs-gcp-00-bucket
+
+gsutil mb gs://$MY_BUCKET
+
+# Copying an image file into your bucket
+
+gsutil cp gs://cloud-training/gcpnet/private/access.svg gs://$MY_BUCKET
+
+# copying the image from your bucket into cloud shell
+
+gsutil cp gs://$MY_BUCKET/*.svg .
+
+#  connecting to vm-internal
+
+gcloud compute ssh vm-internal --zone us-central1-c --tunnel-through-iap
+
+# copying the image from your bucket into vm-internal. this will fail.
+
+gsutil cp gs://$MY_BUCKET/*.svg .
+
+ctrl+c to cancel the operation.
+
+# Enabling Private Google Access
+
+gcloud compute networks subnets update privatenet-us --region=us-central1 --enable-private-ip-google-access
+
+# copying the image from your bucket into vm-internal. this should work now.
+
+gsutil cp gs://$MY_BUCKET/*.svg .
+
+exit ssh 
+
+Task 3. Configure a Cloud NAT gateway
+
+# Trying to update the cloud shell VM instances packages. this should work because cloud shell has an external IP
+
+sudo apt-get update
+
+#  connecting to vm-internal
+
+gcloud compute ssh vm-internal --zone us-central1-c --tunnel-through-iap
+
+# updating packages. This should only work for Google Cloud packages because vm-internal only has access to Google APIs and services
+
+sudo apt-get update
+
+# Configuring a Cloud NAT gateway
+
+# First we have to create a cloud router
+
+gcloud compute routers create nat-router \
+--network privatenet \
+--region us-central1
+
+# creating the NAT gateway
+
+gcloud compute routers nats create nat-config \
+--router=nat-router \
+--auto-allocate-nat-external-ips \
+--region=us-central1 \
+--nat-all-subnet-ip-ranges
+
+# Verifying the Cloud NAT gateway by updating the packages of vm-internal again. This should work because vm-internal is using the NAT gateway!
+
+sudo apt-get update
+
+exit ssh
+
+Task 4. Configure and view logs with Cloud NAT Logging
+
+# Enabling logging
+
+gcloud compute routers nats update nat-config \
+--router=nat-router \
+--region=us-central1 \
+--enable-logging
+
+# NAT logging in Cloud Operations
+
+Log viewing is most suitable through the cloud console.
+
+# Generating logs by ssh into vm-internal
+
+gcloud compute ssh vm-internal --zone us-central1-c --tunnel-through-iap
+
+# re-synchronizing the package index of vm-internal
+
+sudo apt-get update
+
+exit ssh
+
+# Viewing Logs in the cloud console in NAT Logging tab and clicking Load newer logs button.
+
+---------END OF LAB------------

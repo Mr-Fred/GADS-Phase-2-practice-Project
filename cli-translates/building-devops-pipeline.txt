@@ -1,0 +1,182 @@
+Building a DevOps Pipeline
+
+in this lab we Create a Git repository
+
+Create a simple Python application
+
+Test Your web application in Cloud Shell
+
+Define a Docker build
+
+Manage Docker images with Cloud Build and Container Registry
+
+Automate builds with triggers
+
+Test your build changes
+
+Task 1: Create a Git Repository
+
+gcloud config set compute/region us-central1
+
+export PROJECT_ID=qwiklabs-gcp-02-e9334a33e2a0
+
+gcloud source repos create devops-repo
+
+export REPO_URL=https://source.developers.google.com/p/qwiklabs-gcp-02-e9334a33e2a0/r/devops-repo
+
+# creating a folder for our code
+
+mkdir gcp-course && cd gcp-course
+
+# cloning our repo
+
+gcloud source repos clone devops-repo && cd devops-repo
+
+Task 2: Create a Simple Python Application to work on.
+
+# creating main.py in the cloud editor. 
+# adding a new folder "templates" to devops-repo folder
+
+mkdir templates && cd templates 
+
+# inside the templates folder we are creating layout.html and index.html using the code editor and write in codes.
+
+touch layout.html && touch index.html
+
+# changing dir back to the devops-repo dir to create the requirement.txt file for our app.
+
+cd ..
+
+vi requirements.txt 
+
+# adding the changes to our local git repo 
+
+git add --all
+
+# identifying ouselves to git in order to commit the changes and push to our source repo
+
+git config --global user.email "student-02-322c5f7c73d4@qwiklabs.net"
+git config --global user.name "Mr FRED"
+
+# committing the changes
+
+git commit -a -m "initial commit"
+
+# pushing to source repo
+
+git push origin master
+
+Task 3: Test Your Web Application in Cloud Shell
+
+# installing our app dependencies in devops-repo folder where the app code live
+
+sudo pip3 install -r requirements.txt
+
+# running the app and preview on port 80880 of cloud shell. The program should be displayed in a new browser tab with a msg "Hello DevOps Fans"
+
+python3 main.py
+
+ctrl+c to stop the program.
+
+# Edited the main.py in the code editor and push changed to the repo
+
+git commit -a -m "Second Commit"
+
+git push origin master
+
+Task 4: Define a Docker Build
+
+# creating a Dockerfile in devops-repo directory to define how our container image will be build
+
+-------STarT FILE -----------
+
+FROM python:3.7
+WORKDIR /app
+COPY . .
+RUN pip install gunicorn
+RUN pip install -r requirements.txt
+ENV PORT=80
+CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 main:app
+
+------------END FILE--------
+
+Task 5: Manage Docker Images with Cloud Build and Container Registy
+
+# making sure we are in the dir where our source code and dockerfile are located.
+
+cd ~/gcp-course/devops-repo
+
+# building the image with cloud build and storing it in google container registry
+
+gcloud builds submit --tag gcr.io/$PROJECT_ID/devops-image:v0.1 .
+
+# checking our image in GCR
+
+gcloud container images list
+
+# checking the build history
+
+gcloud builds list
+
+# creating an instance with our newly built image
+
+gcloud compute instances create-with-container instance-1 \
+--container-image=gcr.io/$PROJECT_ID/devops-image:v0.1 \
+--zone=us-central1-a \
+--tags=http-server
+
+gcloud compute firewall-rules create default-allow-http \
+--network=default \
+--direction=INGRESS \
+--allow=tcp:80 \
+--target-tags=http-server
+
+# adding the Dockerfile to our sorce repo. we must be in the devops-repo dir
+
+git add .
+
+git commit -am "Added Docker Support"
+
+git push origin master
+
+Task 6: Automate Builds with Triggers
+
+gcloud beta builds triggers create cloud-source-repositories \
+--name="devops-trigger" \
+--repo="devops-repo" \
+--branch-pattern=".*" \
+--dockerfile-dir="" \
+--dockerfile=Dockerfile
+
+# runnng a test trigger 
+
+gcloud beta builds triggers run devops-trigger --branch=master
+
+# checking the new image in GCR 
+
+gcloud container images list
+
+# Making changes to the main.py source code using code editor then pushing the chnages to our repo to trigger an automatic build. 
+
+# adding the chnages and pushing to devops-repo
+
+git commit -am "Testing Build Trigger"
+
+git push origin master
+
+Task 7: Test Your Build Changes
+
+# checking the new image in GCR 
+
+gcloud container images list
+
+# creating a new VM with the new image 
+
+export TRIGGER_IMG=gcr.io/qwiklabs-gcp-02-e9334a33e2a0/devops-repo:9e5cd3477cf084a03da77d568784ea9e46edaf00
+
+gcloud compute instances create-with-container instance-2 \
+--container-image=$TRIGGER_IMG \
+--tags=http-server \
+--zone=us-central1-a
+
+END OF LAB
